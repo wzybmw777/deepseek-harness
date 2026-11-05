@@ -19,8 +19,8 @@
         - button "修改搜索会话快捷键"
         - text: 搜索会话 ⌥ ⌘ K
       - listitem:
-        - button "修改添加工作区快捷键"
-        - text: 添加工作区 ⌥ ⌘ O
+        - button "修改新建项目快捷键"
+        - text: 新建项目 ⌥ ⌘ O
       - listitem:
         - button "修改重命名会话快捷键"
         - text: 重命名会话 ⌥ ⌘ G

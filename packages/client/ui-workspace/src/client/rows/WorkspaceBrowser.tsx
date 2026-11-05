@@ -310,6 +310,26 @@ function EmptySessions({ rowState, onLeaveArchivedOnly, t }: Pick<SessionTreePro
   )
 }
 
+/** Initial sidebar load: compact session-shaped skeletons on the shared pulse. */
+function LoadingSessions({ t }: Pick<SessionTreeProps, 't'>) {
+  return (
+    <div className={clsx(css.treeBody, css.wide)}>
+      <div className={clsx(css.list, css.loadingList)} role="status" aria-busy="true" aria-label={t('picker.loading')}>
+        {[0, 1, 2].map(index => (
+          <div key={index} className={clsx(css.skeletonRow, css.loadingRow)} aria-hidden="true">
+            <span className={css.skeletonDot} />
+            <span className={css.skeletonBars}>
+              <span className={css.skeletonBar} />
+              <span className={clsx(css.skeletonBar, css.skeletonBarWide)} />
+            </span>
+          </div>
+        ))}
+      </div>
+      <span className={css.fade} />
+    </div>
+  )
+}
+
 /** The scrolling session tree; unmounting drops the sessions subscription and the session watermarks. */
 function SessionTree({
   list, useSessionStatus, startSession, open, workspaces, ungroupedSessionIds,
@@ -950,6 +970,7 @@ export function WorkspaceBrowser({
   )
   const workspacePhase = useWorkspaces(state => state.phase)
   const workspaceStreamState = useWorkspaces(state => state.state)
+  const initialLoading = list.phase === 'pending' || workspacePhase === 'pending'
   const archivedSessionIds = useWorkspaces(state => state.archivedSessionIds)
   const pinnedSessionIds = useWorkspaces(state => state.pinnedSessionIds)
   // Live occupancy of this surface's directory-flow hole (the same source the
@@ -1370,63 +1391,65 @@ export function WorkspaceBrowser({
               t={t}
             />
           )
-          : groupBy === 'flat'
-            ? (
-              <FlatList
-                useSessionAccess={useSessionAccess}
-                usePanelInfo={usePanelInfo}
-                list={list}
-                sessionIds={orderedFlatSessionIds}
-                rowState={rowState}
-                onLeaveArchivedOnly={leaveArchivedOnly}
-                workspaceReady={workspaceReady}
-                animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
-                useSessionStatus={useSessionStatus}
-                open={guardedOpen}
-                onSessionRenameRequest={requestSessionRename}
-                renderSlot={renderSlot}
-                openSessionMenu={openSessionMenu} useContextMenu={useContextMenu}
-                useContextMenuTarget={useContextMenuTarget}
-                setSessionOrder={saveSessionOrder}
-                revealSessionId={revealSessionId}
-                onSessionRevealed={acknowledgeSessionReveal}
-                home={home}
-                t={t}
-              />
-            )
-            : (
-              <SessionTree
-                useRemoteAccess={useRemoteAccess}
-                useSessionAccess={useSessionAccess}
-                useWorkspaceAccess={useWorkspaceAccess}
-                usePanelInfo={usePanelInfo}
-                list={list}
-                shortcuts={shortcuts}
-                useSessionStatus={useSessionStatus}
-                onSessionRenameRequest={requestSessionRename}
-                renderSlot={renderSlot}
-                openSessionMenu={openSessionMenu} useContextMenu={useContextMenu}
-                openWorkspaceMenu={openWorkspaceMenu}
-                useContextMenuTarget={useContextMenuTarget}
-                workspaces={orderedWorkspaces}
-                ungroupedSessionIds={orderedUngroupedSessionIds}
-                workspaceReady={workspaceReady}
-                nestWorkspaces={groupBy === 'workspace-tree'}
-                animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
-                groupExpansion={groupExpansion}
-                setGroupExpanded={actions.setGroupExpanded}
-                setSessionOrder={saveSessionOrder}
-                rowState={rowState}
-                onLeaveArchivedOnly={leaveArchivedOnly}
-                startSession={startSession}
-                open={guardedOpen}
-                insertWorkspaceBefore={insertWorkspaceBefore}
-                revealSessionId={revealSessionId}
-                onSessionRevealed={acknowledgeSessionReveal}
-                home={home}
-                t={t}
-              />
-            ))}
+          : initialLoading
+            ? <LoadingSessions t={t} />
+            : groupBy === 'flat'
+              ? (
+                <FlatList
+                  useSessionAccess={useSessionAccess}
+                  usePanelInfo={usePanelInfo}
+                  list={list}
+                  sessionIds={orderedFlatSessionIds}
+                  rowState={rowState}
+                  onLeaveArchivedOnly={leaveArchivedOnly}
+                  workspaceReady={workspaceReady}
+                  animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
+                  useSessionStatus={useSessionStatus}
+                  open={guardedOpen}
+                  onSessionRenameRequest={requestSessionRename}
+                  renderSlot={renderSlot}
+                  openSessionMenu={openSessionMenu} useContextMenu={useContextMenu}
+                  useContextMenuTarget={useContextMenuTarget}
+                  setSessionOrder={saveSessionOrder}
+                  revealSessionId={revealSessionId}
+                  onSessionRevealed={acknowledgeSessionReveal}
+                  home={home}
+                  t={t}
+                />
+              )
+              : (
+                <SessionTree
+                  useRemoteAccess={useRemoteAccess}
+                  useSessionAccess={useSessionAccess}
+                  useWorkspaceAccess={useWorkspaceAccess}
+                  usePanelInfo={usePanelInfo}
+                  list={list}
+                  shortcuts={shortcuts}
+                  useSessionStatus={useSessionStatus}
+                  onSessionRenameRequest={requestSessionRename}
+                  renderSlot={renderSlot}
+                  openSessionMenu={openSessionMenu} useContextMenu={useContextMenu}
+                  openWorkspaceMenu={openWorkspaceMenu}
+                  useContextMenuTarget={useContextMenuTarget}
+                  workspaces={orderedWorkspaces}
+                  ungroupedSessionIds={orderedUngroupedSessionIds}
+                  workspaceReady={workspaceReady}
+                  nestWorkspaces={groupBy === 'workspace-tree'}
+                  animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
+                  groupExpansion={groupExpansion}
+                  setGroupExpanded={actions.setGroupExpanded}
+                  setSessionOrder={saveSessionOrder}
+                  rowState={rowState}
+                  onLeaveArchivedOnly={leaveArchivedOnly}
+                  startSession={startSession}
+                  open={guardedOpen}
+                  insertWorkspaceBefore={insertWorkspaceBefore}
+                  revealSessionId={revealSessionId}
+                  onSessionRevealed={acknowledgeSessionReveal}
+                  home={home}
+                  t={t}
+                />
+              ))}
       </div>
 
       {workspaceActionRequest !== null && <WorkspaceDialogs key={`${workspaceActionRequest.action}/${workspaceActionRequest.workspaceId}`}

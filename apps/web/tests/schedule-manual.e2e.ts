@@ -43,8 +43,8 @@ it('creates from a paused empty state, selects the task, and saves an inline edi
     await dialog.getByRole('button', { name: /^执行位置 / }).click()
     await page.getByRole('menuitem', { name: '新建会话并复用 首次运行时创建，之后沿用这个会话', exact: true }).waitFor()
     expect(await page.getByRole('menuitem').count()).toBe(2)
-    const workspace = dialog.getByRole('button', { name: /^关联工作区 / })
-    await expect.poll(() => workspace.textContent()).toContain('默认工作区')
+    const workspace = dialog.getByRole('button', { name: /^关联项目 / })
+    await expect.poll(() => workspace.textContent()).toContain('默认项目')
     await page.keyboard.press('Escape')
     // The workspace menu states each directory, so the default workspace names its folder.
     const defaultPath = scaffold.ctx.workspaceRegistry.list()[0]?.path

@@ -5,6 +5,7 @@ import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { BrowserFrameState } from './BrowserFrame.ts'
 import type { BrowserPage, BrowserPageFactory } from './BrowserPage.ts'
 import { currentBrowserTarget, type BrowserTabState } from './BrowserPersistence.ts'
+import type { BrowserSandboxPreference } from './sandbox-preference.ts'
 import type { BrowserStore } from './store.ts'
 import { parseBrowserAddress, type BrowserAddressFailure, type BrowserTarget } from './url.ts'
 
@@ -25,6 +26,7 @@ export interface BrowserControllerOptions {
   readonly initial: BrowserTabState | undefined
   readonly actions: BoundActions<BrowserStore>
   readonly createPage: BrowserPageFactory
+  readonly sandboxPreference: BrowserSandboxPreference
   readonly openTab: (url: string) => void
 }
 
@@ -33,6 +35,7 @@ export class BrowserController implements HostObservable<BrowserControllerState>
   private readonly page: BrowserPage
   private readonly store: SnapshotStore<BrowserControllerState>
   private readonly unsubscribe: () => void
+  private readonly unsubscribeSandbox: () => void
   private actions: BoundActions<BrowserStore>
   private checkpoint: BrowserTabState | undefined
   private started = false
@@ -46,6 +49,7 @@ export class BrowserController implements HostObservable<BrowserControllerState>
     this.checkpoint = options.initial
     this.page = options.createPage({
       initial: options.initial,
+      sandboxEnabled: options.sandboxPreference.getSnapshot(),
       persist: (state) => {
         if (this.disposed) return
         this.checkpoint = state
@@ -68,6 +72,9 @@ export class BrowserController implements HostObservable<BrowserControllerState>
       this.store.set({ frame, restoreTarget: frame.target === undefined ? currentBrowserTarget(this.checkpoint) : undefined,
         addressFailure: changed ? undefined : current.addressFailure,
         addressRevision: current.addressRevision + Number(changed) })
+    })
+    this.unsubscribeSandbox = options.sandboxPreference.subscribe(() => {
+      this.page.frame.sandbox?.setEnabled(options.sandboxPreference.getSnapshot())
     })
     options.signal.addEventListener('abort', this.abort, { once: true })
   }
@@ -130,7 +137,8 @@ export class BrowserController implements HostObservable<BrowserControllerState>
    */
   setSandbox(enabled: boolean): void {
     const sandbox = this.page.frame.sandbox
-    if (sandbox !== undefined) this.command(() => { sandbox.setEnabled(enabled) })
+    if (sandbox === undefined || this.options.sandboxPreference.getSnapshot() === enabled) return
+    this.command(() => { this.options.sandboxPreference.setEnabled(enabled) })
   }
 
   /**
@@ -148,6 +156,7 @@ export class BrowserController implements HostObservable<BrowserControllerState>
     this.disposed = true
     this.options.signal.removeEventListener('abort', this.abort)
     this.unsubscribe()
+    this.unsubscribeSandbox()
     this.disposal = this.page.frame.dispose()
     return this.disposal
   }
@@ -200,7 +209,11 @@ export interface BrowserInjected {
   goForward(tabId: TabId): void
   /** Restore a saved address or reload its page. @param tabId - owning tab. */
   reload(tabId: TabId): void
-  /** @param tabId - owning tab. @param enabled - provider's optional sandbox control. */
+  /**
+   * Persist the shared sandbox policy and synchronize every open Web page.
+   * @param tabId - owning tab.
+   * @param enabled - provider's optional sandbox control.
+   */
   setSandbox(tabId: TabId, enabled: boolean): void
 }
 
@@ -209,10 +222,11 @@ export interface BrowserInjected {
  * @param actions - persisted view-state writer.
  * @param createPage - composition-selected provider.
  * @param isTabOpen - authoritative layout membership, independent of mounted bodies and plugin lifetime.
+ * @param sandboxPreference - shared Web iframe policy.
  * @returns tab callbacks.
  */
 export function createBrowserControllers(actions: BoundActions<BrowserStore>, createPage: BrowserPageFactory,
-  isTabOpen: (tabId: TabId) => boolean): BrowserInjected {
+  isTabOpen: (tabId: TabId) => boolean, sandboxPreference: BrowserSandboxPreference): BrowserInjected {
   let currentActions = actions
   const controllers = new Map<TabId, {
     readonly signal: AbortSignal
@@ -231,7 +245,9 @@ export function createBrowserControllers(actions: BoundActions<BrowserStore>, cr
           held.signal.removeEventListener('abort', held.forget)
           void held.controller.dispose()
         }
-        const created = new BrowserController({ ...request, actions: currentActions, createPage })
+        const created = new BrowserController({
+          ...request, actions: currentActions, createPage, sandboxPreference,
+        })
         const forget = (): void => {
           controllers.delete(tabId)
           // Plugin unload also aborts occurrences; only layout removal deletes saved navigation.

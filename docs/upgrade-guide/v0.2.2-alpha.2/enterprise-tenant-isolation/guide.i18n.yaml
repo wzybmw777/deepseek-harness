@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-alpha.2/enterprise-tenant-isolation/guide.md
+/:
+  en: 113df540189fb3c2
+  zh: 55f31f158934f5de
+/enterprise-workspaces-require-sign-in-and-rootless-containers:
+  en: 91da667341dae6c9
+  zh: e9e5cbac8e10386d
+/enterprise-workspaces-require-sign-in-and-rootless-containers/change:
+  en: 1a08c594d4721dbe
+  zh: 5e3ed9759a863fa7
+/enterprise-workspaces-require-sign-in-and-rootless-containers/migration:
+  en: c9faaceffa7b5e38
+  zh: d1a35e8f6620a297

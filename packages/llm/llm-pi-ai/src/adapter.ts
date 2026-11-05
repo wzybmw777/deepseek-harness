@@ -253,6 +253,7 @@ function requestHeaders(
       baseURL,
       ...options.sessionId === undefined ? {} : { sessionId: options.sessionId },
       ...options.purpose === undefined ? {} : { purpose: options.purpose },
+      ...options.requestId === undefined ? {} : { requestId: options.requestId },
     })
     const headers = prepare === undefined ? initial : prepare(request, initial)
     for (const [name, value] of Object.entries(attributionHeaders())) headers.set(name, value)

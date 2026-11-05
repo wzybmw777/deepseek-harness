@@ -8,9 +8,9 @@ import * as Browser from '@deepseek-ai/dsh-client-ui-sidebar-browser'
 import { expect, it, onTestFinished } from 'vitest'
 
 it.each([
-  { profile: 'web', override: undefined, disabled: true },
-  { profile: 'custom-web', override: undefined, disabled: true },
-  { profile: undefined, override: undefined, disabled: true },
+  { profile: 'web', override: undefined, disabled: false },
+  { profile: 'custom-web', override: undefined, disabled: false },
+  { profile: undefined, override: undefined, disabled: false },
   { profile: 'desktop', override: undefined, disabled: false },
   { profile: 'web', override: false, disabled: false },
   { profile: 'desktop', override: true, disabled: true },

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PaneId, TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import { createBrowserControllers, type BrowserControllerState, type BrowserInjected } from '../src/client/browser/BrowserController.ts'
+import { IFRAME_LOAD_TIMEOUT_MS } from '../src/client/browser/IframeImpl.ts'
 import { createBrowserStore } from '../src/client/browser/store.ts'
 import type { BrowserBodyProps } from '../src/client/view/BrowserBody.tsx'
 import { BrowserBody } from '../src/client/view/BrowserBody.tsx'
@@ -12,6 +13,7 @@ import { WEB_BROWSER_SANDBOX } from '../src/client/view/IframePresentation.ts'
 import { createIframePage } from '../src/client/pages.ts'
 import { zh } from '../src/client/locales.ts'
 import { browserAddressCheckpoint, type BrowserTabState } from '../src/client/browser/BrowserPersistence.ts'
+import { BROWSER_SANDBOX_PREFERENCE_KEY, createBrowserSandboxPreference } from '../src/client/browser/sandbox-preference.ts'
 import type { BrowserPageFactory, BrowserPageOptions } from '../src/client/browser/BrowserPage.ts'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { emptyBrowserFrame, type BrowserFrameState } from '../src/client/browser/BrowserFrame.ts'
@@ -43,7 +45,9 @@ function mountBrowser(navigation?: { readonly url?: string },
   if (options.initial !== undefined) store.actions.replace(TAB, options.initial)
   const lifetime = new AbortController()
   lifetimes.add(lifetime)
-  const injected = createBrowserControllers(store.actions, options.createPage ?? createIframePage, () => true)
+  const sandboxPreference = createBrowserSandboxPreference()
+  const injected = createBrowserControllers(store.actions, options.createPage ?? createIframePage, () => true,
+    sandboxPreference)
   controllers.push(injected)
   const { keyedHooks, ...commands } = injected
   const tabActions = { bindCommands: vi.fn<ReturnType<BrowserBodyProps['useTabInfo']>['tab']['actions']['bindCommands']>(() => vi.fn()), openResource: vi.fn(), openTab: vi.fn(), close: vi.fn() }
@@ -116,10 +120,10 @@ describe('BrowserBody', () => {
           loadUrl: vi.fn(), goBack: vi.fn(), goForward: vi.fn(), reload: vi.fn(), dispose: async () => {} },
       }
     } })
-    expect(mounted.view.getByRole('status').textContent).toContain('DNS failure')
-    expect(mounted.view.getByRole('status').textContent).toContain('-105')
+    expect(mounted.view.getByRole('alert').textContent).toContain('DNS failure')
+    expect(mounted.view.getByRole('alert').textContent).toContain('-105')
     act(() => { state.set({ ...state.getSnapshot(), error: { code: -105, description: undefined } }) })
-    expect(mounted.view.getByRole('status').textContent).toBe(zh['load.failed'])
+    expect(mounted.view.getByText(zh['load.failed'])).toBeDefined()
     act(() => { providers[0]!.openRequested('https://new.example/') })
     expect(mounted.tabActions.openTab).toHaveBeenCalledExactlyOnceWith('browser', {
       params: { url: 'https://new.example/' }, revealIfOpened: false,
@@ -139,7 +143,7 @@ describe('BrowserBody', () => {
     expect(mounted.view.getByRole('alert').textContent).toBe(zh['error.protocol'])
   })
 
-  it('renders HTTPS in the fixed sandbox and follows controller history', async () => {
+  it('renders HTTPS with the shared sandbox policy and follows controller history', async () => {
     const mounted = mountBrowser()
     const input = mounted.view.getByRole('textbox')
     fireEvent.change(input, { target: { value: 'example.com/one' } })
@@ -148,18 +152,22 @@ describe('BrowserBody', () => {
     expect(input).toHaveProperty('value', 'https://example.com/one')
     let frame = mounted.view.container.querySelector('iframe')!
     expect(frame.getAttribute('src')).toBe('https://example.com/one')
-    expect(frame.getAttribute('sandbox')).toBe(WEB_BROWSER_SANDBOX)
+    expect(frame.getAttribute('sandbox')).toBeNull()
     expect(frame.getAttribute('allow')).toBeNull()
     // jsdom does not reflect the iframe referrerPolicy property to its attribute.
     expect(frame.referrerPolicy).toBe('no-referrer')
+    expect(mounted.view.getByRole('status').textContent).toBe(zh['sandbox.warning'])
+    const enableSandbox = mounted.view.getByRole('button', { name: zh['sandbox.enable'] })
+    const unprotectedMark = enableSandbox.querySelector('svg path:last-child')?.getAttribute('d')
+    fireEvent.click(enableSandbox)
+    await waitFor(() => { expect(mounted.view.container.querySelector('iframe')?.getAttribute('sandbox')).toBe(WEB_BROWSER_SANDBOX) })
     const disableSandbox = mounted.view.getByRole('button', { name: zh['sandbox.disable'] })
     const protectedMark = disableSandbox.querySelector('svg path:last-child')?.getAttribute('d')
+    expect(protectedMark).not.toBe(unprotectedMark)
     fireEvent.click(disableSandbox)
     await waitFor(() => { expect(mounted.view.container.querySelector('iframe')?.getAttribute('sandbox')).toBeNull() })
     expect(mounted.view.getByRole('status').textContent).toBe(zh['sandbox.warning'])
-    const enableSandbox = mounted.view.getByRole('button', { name: zh['sandbox.enable'] })
-    expect(enableSandbox.querySelector('svg path:last-child')?.getAttribute('d')).not.toBe(protectedMark)
-    fireEvent.click(enableSandbox)
+    fireEvent.click(mounted.view.getByRole('button', { name: zh['sandbox.enable'] }))
     await waitFor(() => { expect(mounted.view.container.querySelector('iframe')?.getAttribute('sandbox')).toBe(WEB_BROWSER_SANDBOX) })
     expect(mounted.view.getByRole('button', { name: zh['sandbox.disable'] }).querySelector('svg path:last-child')?.getAttribute('d')).toBe(protectedMark)
 
@@ -232,18 +240,43 @@ describe('BrowserBody', () => {
     expect(mounted.view.queryByText(zh['load.failed'])).toBeNull()
   })
 
-  it('loads loopback under the default sandbox and keeps it across sandbox changes', async () => {
+  it('offers recovery when a page never confirms that it loaded', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const mounted = mountBrowser()
+    vi.useFakeTimers()
+    try {
+      const input = mounted.view.getByRole('textbox')
+      fireEvent.change(input, { target: { value: 'https://example.com/one' } })
+      fireEvent.submit(input.closest('form')!)
+      expect(mounted.view.container.querySelector('iframe')).not.toBeNull()
+
+      act(() => { vi.advanceTimersByTime(IFRAME_LOAD_TIMEOUT_MS) })
+      const alert = mounted.view.getByRole('alert')
+      expect(alert.textContent).toContain(zh['load.timeout'])
+      fireEvent.click(within(alert).getByRole('button', { name: zh.external }))
+      expect(open).toHaveBeenCalledWith('https://example.com/one', '_blank', 'noopener,noreferrer')
+      fireEvent.click(within(alert).getByRole('button', { name: zh['load.retry'] }))
+      expect(mounted.view.queryByText(zh['load.timeout'])).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('loads loopback without the default sandbox and persists sandbox changes', async () => {
     const mounted = mountBrowser()
     const input = mounted.view.getByRole('textbox')
     fireEvent.change(input, { target: { value: 'http://localhost:5173/' } })
     fireEvent.submit(input.closest('form')!)
     await waitFor(() => { expect(mounted.view.container.querySelector('iframe')?.getAttribute('src')).toBe('http://localhost:5173/') })
-    expect(mounted.view.container.querySelector('iframe')?.getAttribute('sandbox')).toBe(WEB_BROWSER_SANDBOX)
+    expect(mounted.view.container.querySelector('iframe')?.getAttribute('sandbox')).toBeNull()
+
+    fireEvent.click(mounted.view.getByRole('button', { name: zh['sandbox.enable'] }))
+    await waitFor(() => { expect(mounted.view.container.querySelector('iframe')?.getAttribute('sandbox')).toBe(WEB_BROWSER_SANDBOX) })
+    expect(JSON.parse(localStorage.getItem(BROWSER_SANDBOX_PREFERENCE_KEY)!)).toBe(true)
 
     fireEvent.click(mounted.view.getByRole('button', { name: zh['sandbox.disable'] }))
     await waitFor(() => { expect(mounted.view.container.querySelector('iframe')?.getAttribute('sandbox')).toBeNull() })
-    fireEvent.click(mounted.view.getByRole('button', { name: zh['sandbox.enable'] }))
-    await waitFor(() => { expect(mounted.view.container.querySelector('iframe')?.getAttribute('sandbox')).toBe(WEB_BROWSER_SANDBOX) })
+    expect(JSON.parse(localStorage.getItem(BROWSER_SANDBOX_PREFERENCE_KEY)!)).toBe(false)
     expect(mounted.view.container.querySelector('iframe')?.getAttribute('src')).toBe('http://localhost:5173/')
   })
 

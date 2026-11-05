@@ -198,6 +198,48 @@
   -webkit-app-region: no-drag;
 }
 
+.remoteSurface {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-base);
+}
+
+.remoteCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.remoteInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  resize: none;
+  overflow: hidden;
+  color: transparent;
+  background: transparent;
+  border: 0;
+  outline: none;
+  caret-color: transparent;
+  cursor: default;
+  -webkit-app-region: no-drag;
+}
+
+.remoteInput:focus-visible {
+  outline: 1px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -1px;
+}
+
 /* Native guest input must not consume a docking gesture's window events. */
 :global(html:has([data-dockkit-pointer])) .webview {
   pointer-events: none;
@@ -221,6 +263,35 @@
   color: var(--dsw-alias-state-error-primary);
   font: var(--dsw-font-xxxs-11);
   background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent);
+}
+
+.loadFailure {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background: var(--dsw-alias-bg-base);
+}
+
+.loadFailureMessage {
+  max-width: 320px;
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xs-13);
+  line-height: 1.5;
+}
+
+.loadFailureActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
 }
 
 .sandboxWarning {

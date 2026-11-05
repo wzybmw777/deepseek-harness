@@ -9,7 +9,7 @@ import { withDefaultWeb, webGet } from './default-web-process.ts'
 
 const experimentalName = '@deepseek-ai/dsh-experimental-client-ui-agent-team'
 
-it('boots default Web with the shipped Schedule rows, without experimental modules, time context, or an active built-in Browser', async (test) => {
+it('boots default Web with the shipped Schedule and Browser rows, without experimental modules or time context', async (test) => {
   await withDefaultWeb(test, async ({ url, request }) => {
     const auth = await webGet(url, test.signal)
     const cookie = auth.headers['set-cookie']?.[0]?.split(';', 1)[0]
@@ -32,8 +32,8 @@ it('boots default Web with the shipped Schedule rows, without experimental modul
     expect(roster.client.entries.length).toBeGreaterThan(0)
     const browser = roster.entries.find(entry => entry.name === '@deepseek-ai/dsh-client-ui-sidebar-browser')
     expect(browser).toBeDefined()
-    expect(browser!.state).toBeUndefined()
-    expect(delivered.entries.some(entry => entry.id === '@deepseek-ai/dsh-client-ui-sidebar-browser')).toBe(false)
+    expect(browser!.state).toBe(FiberState.ACTIVE)
+    expect(delivered.entries.some(entry => entry.id === '@deepseek-ai/dsh-client-ui-sidebar-browser')).toBe(true)
     // The shipped composition mounts the Host Schedule service and its task
     // page; the clock stays preset-level, so neither plane carries a row for it.
     expect(roster.entries).toEqual(expect.arrayContaining([

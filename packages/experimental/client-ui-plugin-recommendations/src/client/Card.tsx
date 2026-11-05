@@ -25,6 +25,8 @@ export interface PluginCardServices {
    * @returns the Host's answer, or undefined when the reply was lost.
    */
   readonly describe: (sessionId: SessionId, callId: ToolCallId) => Promise<RecommendationDetails | undefined>
+  /** Whether the Plugins page can open a plugin's details. */
+  readonly navigation: SnapshotStore<boolean>
   /** Open the plugin's details page without enabling it. */
   readonly openDetails: (packageName: string) => void
   /** Pick the interface language's text. */
@@ -67,11 +69,13 @@ function statusKey(phase: string, data: CardData): RecommendationKey | undefined
  * @returns the card body.
  */
 export function PluginCardBody({
-  proposal, decision, sessionId, summary, act, catalog, describe, openDetails, resolveText, t,
+  proposal, decision, sessionId, summary, act, catalog, describe, navigation, openDetails, resolveText, t,
 }: PluginCardProps) {
   const details = detailsSchema.safeParse(proposal.details)
   const name = details.success ? details.data.name : undefined
   const subscribe = useCallback((listener: () => void) => catalog.subscribe(listener), [catalog])
+  const subscribeNavigation = useCallback((listener: () => void) => navigation.subscribe(listener), [navigation])
+  const navigable = useSyncExternalStore(subscribeNavigation, () => navigation.getSnapshot())
   const cached = useSyncExternalStore(subscribe, () => {
     const entries = catalog.getSnapshot()
     return name !== undefined && Object.hasOwn(entries, name) ? entries[name] : undefined
@@ -125,16 +129,21 @@ export function PluginCardBody({
     } finally { setPending(undefined) }
   }
   const busy = pending !== undefined
+  const detailContent = <>
+    <strong className={css.title}>{title}</strong>
+    {(loading || available !== undefined) && <span id={descriptionId} className={css.description}>
+      {available === undefined ? <span className={css.placeholder} /> : resolveText(available.description)}
+    </span>}
+  </>
   return <>
     <header className={css.header}><span>{t('heading')}</span><span className={css.badge}>{t('official')}</span></header>
     <div className={css.body} aria-busy={loading || undefined}>
-      <button type="button" className={css.details} onClick={() => { openDetails(name) }}
-        aria-label={t('detailsFor', { title })} aria-describedby={available === undefined ? undefined : descriptionId}>
-        <strong className={css.title}>{title}</strong>
-        {(loading || available !== undefined) && <span id={descriptionId} className={css.description}>
-          {available === undefined ? <span className={css.placeholder} /> : resolveText(available.description)}
-        </span>}
-      </button>
+      {navigable
+        ? <button type="button" className={css.details} onClick={() => { openDetails(name) }}
+          aria-label={t('detailsFor', { title })} aria-describedby={available === undefined ? undefined : descriptionId}>
+          {detailContent}
+        </button>
+        : <div className={`${css.details} ${css.static}`}>{detailContent}</div>}
       {status !== undefined && <p role="status" className={css.status}>{t(status)}</p>}
       {failure !== undefined && <p role="alert" className={css.status}>{t(failure)}</p>}
       {lookupProblem !== undefined && <p role="alert" className={css.status}>{t(lookupProblem)}</p>}

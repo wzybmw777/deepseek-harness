@@ -25,21 +25,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
-.wordmark {
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+.status {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   color: var(--dsw-alias-label-primary, var(--dsh-boot-label-primary));
-}
-
-.hint {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary, var(--dsh-boot-label-tertiary));
 }
 
 .spinner {

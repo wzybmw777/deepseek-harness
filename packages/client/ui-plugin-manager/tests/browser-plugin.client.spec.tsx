@@ -157,7 +157,8 @@ describe('ui-plugin-manager browser plugin', () => {
     expect(b.panelInfo.getSnapshot().activePanelId).toBe(PANEL_ID)
     expect(navigation.getSnapshot()).toEqual({ tab: 'installed', view: { kind: 'list' } })
     expect(face.hooks.pluginManager.getSnapshot().install.open).toBe(false)
-    expect(b.list).not.toHaveBeenCalled()
+    await vi.waitFor(() => { expect(face.hooks.pluginManager.getSnapshot().status).toBe('ready') })
+    expect(b.list).toHaveBeenCalledTimes(1)
   })
 
   it('shares refresh failures with the overlay after navigation and releases both registrations across reloads', async () => {
@@ -200,14 +201,16 @@ describe('ui-plugin-manager browser plugin', () => {
     expect(inject).toEqual(['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.pluginInventory', 'remote.pluginRegistryProbe', 'configForms', 'layout', 'remoteAccess'])
   })
 
-  it('reads the Host again on a later grant after showing the page, and not while access is withdrawn', async () => {
+  it('prefetches the Host inventory on entry, reads again on a later grant, and not while access is withdrawn', async () => {
     const b = await bench('switchable')
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const injected: object = b.slots.entries('main')[0]!.inject!()
     const face = injected as PluginManagerFace
-    face.ensure()
     await vi.waitFor(() => { expect(face.hooks.pluginManager.getSnapshot().status).toBe('ready') })
+    expect(b.list).toHaveBeenCalledTimes(1)
+    face.ensure()
+    await Promise.resolve()
     expect(b.list).toHaveBeenCalledTimes(1)
 
     b.access!.set(false)
@@ -234,7 +237,7 @@ describe('ui-plugin-manager browser plugin', () => {
     await fiber.dispose()
   })
 
-  it('registers the sidebar entry and its page, which reads the Host only once rendered and follows Host changes', async () => {
+  it('prefetches the Host inventory before the page renders and follows Host changes', async () => {
     const b = await bench()
     declare(b.slots)
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
@@ -285,13 +288,10 @@ describe('ui-plugin-manager browser plugin', () => {
     expect(face.resolveText(text)).toBe('Local tools')
     b.locale.setLocale('zh')
     expect(face.hooks.configLedger.getSnapshot()).toEqual({ items: [], bundles: new Set(), rows: new Set() })
-    // A Host change before the first render is not a reason to read.
-    b.remote.emit('plugin-manager/changed', [{ reason: 'install' }])
-    b.ctx.emit('connection/reset')
-    await Promise.resolve()
-    expect(b.list).not.toHaveBeenCalled()
-    face.ensure()
     await vi.waitFor(() => { expect(face.hooks.pluginManager.getSnapshot().status).toBe('ready') })
+    expect(b.list).toHaveBeenCalledTimes(1)
+    face.ensure()
+    await Promise.resolve()
     expect(b.list).toHaveBeenCalledTimes(1)
     // A profile change invalidates reads without withdrawing the displayed document.
     face.loadDetail('dsh-a', '1.0.0', 'en', false)
@@ -303,6 +303,10 @@ describe('ui-plugin-manager browser plugin', () => {
     b.remote.emit('plugin-manager/changed', [{ reason: 'bundle' }])
     await vi.waitFor(() => { expect(b.list).toHaveBeenCalledTimes(2) })
     expect(face.hooks.bundleDetails.getSnapshot()).toEqual(loadedDetails)
+    // The first reset belongs to the connection the workspace prefetch already covered.
+    b.ctx.emit('connection/reset')
+    await Promise.resolve()
+    expect(b.list).toHaveBeenCalledTimes(2)
     b.ctx.emit('connection/reset')
     await vi.waitFor(() => { expect(b.list).toHaveBeenCalledTimes(3) })
 

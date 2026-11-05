@@ -95,6 +95,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-plugin-manager: dictionaries')
   const t = ctx.locale.bind(NS)
   const controller = new PluginManagerController(ctx)
+  let firstConnectionReset = true
   ctx.effect(() => () => { controller.dispose() }, 'ui-plugin-manager: controller')
   ctx.provide('pluginChanges', { bundle: packageName => controller.observeChanges(packageName) })
   // The page is a global panel: it belongs to the profile, not to a Session,
@@ -106,11 +107,19 @@ export function apply(ctx: ClientContext): void {
   ctx.remoteAccess.whenAccess('pluginManager/listBundles', function* () {
     // The Host says when what is installed, enabled, or composed changed — from
     // this page, the CLI, or another browser — and streams install output.
-    // A page never rendered holds no snapshot to refresh.
+    // Prefetch on workspace entry so opening the page renders from the loaded inventory.
     const refresh = (): void => {
       // A profile change can replace a bundle's files, and a restarted Host is read afresh.
       controller.details.reset()
-      if (controller.getSnapshot().status !== 'idle') void controller.load()
+      void controller.load()
+    }
+    const onConnectionReset = (): void => {
+      // The first reset announces the connection the workspace prefetch already covers.
+      if (firstConnectionReset) {
+        firstConnectionReset = false
+        return
+      }
+      refresh()
     }
     // Host changes made while access was withdrawn reached no subscription below.
     refresh()
@@ -118,7 +127,7 @@ export function apply(ctx: ClientContext): void {
     yield ctx.remote.$on('plugin-manager/install-log', (chunk) => { controller.appendLog(chunk) })
     yield ctx.remote.$on('plugin-manager/install-state', (progress) => { controller.installProgress(progress) })
     yield ctx.remote.$on('plugin-manager/update-state', (progress) => { controller.updateProgress(progress) })
-    yield ctx.on('connection/reset', refresh)
+    yield ctx.on('connection/reset', onConnectionReset)
     yield ctx.slots.inject('shell.overlay', () => ctx.slots.register({
       name: 'shell.overlay', id: 'plugin-manager.refresh-toast', locale: NS,
       inject: (): PluginRefreshToastFace => ({

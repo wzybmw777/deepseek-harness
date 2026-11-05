@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /** The body registers into the shared card registry with its copy and Remote, and leaves all three on unload. */
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { Context } from '@deepseek-ai/cordis'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
@@ -21,8 +21,6 @@ it('registers the plugin body, its copy and Remote for the plugin lifetime and s
   const unregister = vi.fn()
   const register = vi.fn((_descriptor: ActionCardDescriptor<'pluginRecommendations'>) => unregister)
   ctx.provide('actionCards', { register })
-  const openBundle = vi.fn()
-  ctx.provide('pluginNavigation', { openBundle })
   const describe = vi.fn().mockResolvedValue({ ok: true, value: { status: 'available', title: { en: 'Session search' },
     description: { en: 'Search past conversations' }, enabled: false } })
   const unmount = vi.fn(async () => {})
@@ -41,6 +39,11 @@ it('registers the plugin body, its copy and Remote for the plugin lifetime and s
   render(card())
   await act(async () => {})
   expect(describe).toHaveBeenCalledWith('session-one', 'card')
+  expect(screen.queryByRole('button', { name: 'View details: Session search' })).toBeNull()
+  const openBundle = vi.fn()
+  const navigation = ctx.plugin({ apply: (scope: Context) => { scope.provide('pluginNavigation', { openBundle }) } })
+  await navigation
+  await waitFor(() => { expect(screen.getByRole('button', { name: 'View details: Session search' })).toBeTruthy() })
   screen.getByRole('button', { name: 'View details: Session search' }).click()
   expect(openBundle).toHaveBeenCalledWith('official-search')
   cleanup()

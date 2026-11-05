@@ -6,19 +6,24 @@ import type { BrowserPageOptions } from './BrowserPage.ts'
 import { BrowserNavigation } from './BrowserNavigation.ts'
 import type { BrowserTarget } from './url.ts'
 
+/** How long an iframe may remain silent before the UI offers recovery. */
+export const IFRAME_LOAD_TIMEOUT_MS = 20_000
+
 /** Owns iframe navigation; the view reports loads without reading cross-origin content. */
 export class IframeImpl implements BrowserFrame {
   readonly sandbox: BrowserSandboxControl = { setEnabled: (enabled) => { this.setSandbox(enabled) } }
   private readonly navigation: BrowserNavigation
   private readonly store: SnapshotStore<BrowserFrameState>
-  private sandboxed = true
+  private sandboxed: boolean
   private error: BrowserLoadError | undefined
+  private loadTimer: ReturnType<typeof setTimeout> | undefined
   private disposed = false
   private disposal: Promise<void> | undefined
 
   /** @param options - initial checkpoint and persistence writer. @param presentation - iframe DOM adapter. */
   constructor(private readonly options: BrowserPageOptions, private readonly presentation: IframePresentation) {
     this.navigation = new BrowserNavigation(options.initial)
+    this.sandboxed = options.sandboxEnabled
     this.store = createSnapshotStore({ ...emptyBrowserFrame(), sandboxEnabled: this.sandboxed })
   }
 
@@ -28,6 +33,9 @@ export class IframeImpl implements BrowserFrame {
    */
   handleLoaded(revision: number): void {
     if (this.disposed) return
+    if (this.navigation.snapshot.request?.revision !== revision) return
+    this.clearLoadTimer()
+    this.error = undefined
     this.navigation.frameLoaded(revision)
     this.publish()
   }
@@ -38,6 +46,7 @@ export class IframeImpl implements BrowserFrame {
    */
   handleLoadFailed(revision: number): void {
     if (this.disposed || this.navigation.snapshot.request?.revision !== revision) return
+    this.clearLoadTimer()
     this.error = { code: undefined, description: undefined }
     this.publish()
   }
@@ -66,6 +75,7 @@ export class IframeImpl implements BrowserFrame {
   dispose(): Promise<void> {
     if (this.disposal !== undefined) return this.disposal
     this.disposed = true
+    this.clearLoadTimer()
     this.presentation.dispose()
     this.disposal = Promise.resolve()
     return this.disposal
@@ -83,15 +93,31 @@ export class IframeImpl implements BrowserFrame {
 
   private load(request: ReturnType<BrowserNavigation['navigate']> | undefined): void {
     if (request === undefined) return
+    this.clearLoadTimer()
     this.error = undefined
     this.publish()
+    const revision = request.revision
+    this.loadTimer = setTimeout(() => {
+      this.loadTimer = undefined
+      if (this.disposed) return
+      const state = this.navigation.snapshot
+      if (state.request?.revision !== revision || state.navigation.status !== 'loading') return
+      this.error = { code: undefined, description: undefined, timedOut: true }
+      this.publish()
+    }, IFRAME_LOAD_TIMEOUT_MS)
     this.presentation.show({ target: request.target, revision: request.revision, sandboxed: this.sandboxed })
+  }
+
+  private clearLoadTimer(): void {
+    if (this.loadTimer === undefined) return
+    clearTimeout(this.loadTimer)
+    this.loadTimer = undefined
   }
 
   private snapshot(): BrowserFrameState {
     const state = this.navigation.snapshot
     const target = BrowserNavigation.current(state)
-    return { target, address: target === undefined ? 'empty' : state.navigation.status === 'unknown' ? 'unknown' : 'requested',
+    return { target, address: state.navigation.status === 'unknown' ? 'unknown' : 'requested',
       loading: state.navigation.status === 'loading' && this.error === undefined,
       canGoBack: this.navigation.canGoBack, canGoForward: this.navigation.canGoForward,
       error: this.error, sandboxEnabled: this.sandboxed }

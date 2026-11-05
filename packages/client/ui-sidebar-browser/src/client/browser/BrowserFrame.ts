@@ -6,6 +6,8 @@ import type { BrowserTarget } from './url.ts'
 export interface BrowserLoadError {
   readonly code: number | undefined
   readonly description: string | undefined
+  /** Whether the carrier stopped waiting before the page confirmed that it loaded. */
+  readonly timedOut?: boolean
 }
 
 /** State consumed by common browser chrome, without DOM or carrier identifiers. */

@@ -6,6 +6,10 @@
 import type { LoaderEntryState } from './loader-status.ts'
 import css from './boot-page.module.css'
 
+/* The page renders before locale delivery, so its one line of product copy is static. */
+const ENTERING_WORKSPACE = '正在进入工作台…'
+const WORKSPACE_FAILED = '工作台加载失败'
+
 /** Create a div with one module class and optional text. */
 function div(className: string | undefined, text?: string): HTMLDivElement {
   const el = document.createElement('div')
@@ -18,9 +22,8 @@ function div(className: string | undefined, text?: string): HTMLDivElement {
 export class BootPage {
   private readonly root: HTMLDivElement
   private readonly card: HTMLDivElement
-  private readonly wordmark: HTMLDivElement
   private readonly spinner: HTMLDivElement
-  private readonly hint: HTMLDivElement
+  private readonly status: HTMLDivElement
   private readonly states = new Map<string, LoaderEntryState>()
   private readonly active = new Set<string>()
   private total = 0
@@ -34,11 +37,11 @@ export class BootPage {
     this.root = div(css.boot)
     this.root.dataset.dshBoot = ''
     this.card = div(css.card)
-    this.wordmark = div(css.wordmark, 'HARNESS')
     this.spinner = div(css.spinner)
     this.spinner.dataset.dshBootSpinner = ''
-    this.hint = div(css.hint, 'Loading plugins…')
-    this.card.append(this.wordmark, this.spinner, this.hint)
+    this.status = div(css.status, ENTERING_WORKSPACE)
+    this.status.setAttribute('role', 'status')
+    this.card.append(this.spinner, this.status)
     this.root.append(this.card)
     container.append(this.root)
     this.updateProgress()
@@ -79,20 +82,20 @@ export class BootPage {
     this.root.remove()
   }
 
-  /** Redraw the state-dependent content below the wordmark. */
+  /** Redraw the loading status or failure report. */
   private render(): void {
     const failed = [...this.states].filter(([, state]) => state === 'failed').map(([id]) => id)
     if (this.failure === undefined && failed.length === 0) {
       if (this.spinner.parentElement !== this.card) {
-        this.card.replaceChildren(this.wordmark, this.spinner, this.hint)
+        this.card.replaceChildren(this.spinner, this.status)
       }
       return
     }
     const report = div(css.failed)
-    report.append(div(css.failedTitle, 'Failed to load plugins'))
+    report.append(div(css.failedTitle, WORKSPACE_FAILED))
     for (const id of failed) report.append(div(css.failedItem, id))
     if (this.failure !== undefined) report.append(div(css.failedItem, this.failure))
-    this.card.replaceChildren(this.wordmark, report)
+    this.card.replaceChildren(report)
   }
 
   /** Grow the rotating arc monotonically as loader entries activate. */

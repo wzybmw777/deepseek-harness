@@ -1090,9 +1090,16 @@ export class PluginManagerController {
         this.rerun = false
         const generation = ++this.generation
         if (this.getSnapshot().status === 'idle') this.patch({ status: 'loading' })
-        // The manager Remote is mounted whether or not the Host manages a
-        // profile; the inventory says whether it does.
-        const inventory = await this.ctx.remote.pluginInventory.list()
+        // Start all three reads together. The inventory decides whether the
+        // bundle and entry reads are meaningful, but neither depends on its
+        // answer, so serializing them only delays the workspace prefetch.
+        const [inventory, bundles, plugins] = await Promise.all([
+          // The manager Remote is mounted whether or not the Host manages a
+          // profile; the inventory says whether it does.
+          this.ctx.remote.pluginInventory.list(),
+          this.ctx.remote.pluginManager.listBundles().catch(() => undefined),
+          this.ctx.remote.pluginManager.listPlugins().catch(() => undefined),
+        ])
         if (generation !== this.generation) return
         if (!inventory.ok) {
           this.patch({ status: 'error' })
@@ -1103,12 +1110,7 @@ export class PluginManagerController {
           this.patch({ status: 'unavailable', packages: [] })
           continue
         }
-        const [bundles, plugins] = await Promise.all([
-          this.ctx.remote.pluginManager.listBundles(),
-          this.ctx.remote.pluginManager.listPlugins(),
-        ])
-        if (generation !== this.generation) return
-        if (!bundles.ok || !plugins.ok) {
+        if (bundles === undefined || plugins === undefined || !bundles.ok || !plugins.ok) {
           this.patch({ status: 'error' })
           continue
         }

@@ -545,6 +545,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
         <button
           type="button"
           role="menuitem"
+          data-menu-id={entry.id}
           className={clsx(css.item, selected && (selection === 'fill' ? css.selectedFill : css.selected), entry.danger === true && css.danger)}
           disabled={entry.disabled}
           aria-keyshortcuts={entry.shortcut?.aria}
@@ -574,6 +575,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
                   key={sub.id}
                   type="button"
                   role="menuitem"
+                  data-menu-id={sub.id}
                   className={css.item}
                   disabled={sub.disabled}
                   aria-keyshortcuts={sub.shortcut?.aria}
@@ -636,7 +638,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
         {children}
       </div>
       {footer !== undefined && footer.length > 0 && (
-        <div className={css.footer} role="presentation">
+        <div className={css.footer} role="presentation" data-menu-footer="">
           {footer.map(entry => renderEntry(entry, footerColumns))}
         </div>
       )}

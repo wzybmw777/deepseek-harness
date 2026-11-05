@@ -464,6 +464,34 @@
   height: 13px;
 }
 
+/* Initial Workspace browser load: compact rows on the same pulse, sized for
+   the sidebar's 32–34px tree rows rather than the 48px search-result row. */
+.loadingList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.loadingRow {
+  min-height: 34px;
+  align-items: center;
+  padding-block: 0;
+}
+
+.loadingRow .skeletonBars {
+  gap: 4px;
+}
+
+.loadingRow .skeletonBar {
+  height: 10px;
+}
+
+.loadingRow .skeletonBarWide {
+  width: 56%;
+  height: 8px;
+}
+
 @keyframes search-skeleton {
   0% { opacity: 1; }
   40% { opacity: 0.6; }

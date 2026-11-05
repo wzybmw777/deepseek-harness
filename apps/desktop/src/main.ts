@@ -45,7 +45,7 @@ import { pruneCrashReports, RendererConsoleTail, writeCrashReport, type CrashRep
 import { OperationJournal } from './operation-journal.ts'
 import { runOperationReportJob, type OperationReportJobResult } from './operation-report-job.ts'
 import { openWelcomeWindow } from './welcome-window.ts'
-import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
+import { WELCOME_IPC, needsWelcome, type WelcomeNotice, type WelcomeOperations } from './welcome-api.ts'
 import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
 import { DesktopUpdateJournal } from './update-journal.ts'
 import { DesktopUpdatePreparationError } from './update-error.ts'
@@ -67,6 +67,15 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { resolveEnterpriseDesktopPaths } from './paths.ts'
+import type { DesktopPaths } from './paths.ts'
+import { EnterpriseAuthClient, EnterpriseAuthTransportError, EnterpriseLoginError, EnterpriseSignOutRequired, type EnterpriseAuthSession } from './enterprise-auth.ts'
+import { EnterpriseCredentialStore } from './enterprise-credentials.ts'
+import { createEnterpriseHostBootstrap, type EnterpriseHostBootstrap } from './enterprise-bootstrap.ts'
+import { desktopEnterpriseRelease } from './enterprise-release.ts'
+import type { EnterpriseCredentialRecord } from './enterprise-types.ts'
+import { EnterpriseLifecycle } from './enterprise-lifecycle.ts'
+import { EnterpriseAccessRefresh } from './enterprise-refresh.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -371,13 +380,40 @@ async function main(): Promise<void> {
   const journalDirectory = process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR
   const updateJournal = journalDirectory === undefined ? undefined : new DesktopUpdateJournal(journalDirectory, app.getVersion())
   const resources = runtimeResources()
-  const paths = resolveDesktopPaths()
+  const manifest: unknown = JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8'))
+  const enterpriseRelease = desktopEnterpriseRelease(manifest, process.env, app.isPackaged)
+  const enterpriseMode = enterpriseRelease !== undefined
+  let paths: DesktopPaths = resolveDesktopPaths()
   const development = !app.isPackaged
   const primaryRuntime = development
     ? developmentPrimaryRuntime()
     : join(process.resourcesPath, 'runtime', 'primary-runtime')
-  const activeProject = paths.profile
-  const manager = new DesktopProjectManager(paths, resources)
+  let activeProject = paths.profile
+  let manager = new DesktopProjectManager(paths, resources)
+  let enterpriseAuth: EnterpriseAuthClient | undefined
+  let enterpriseCredentialStore: EnterpriseCredentialStore | undefined
+  let enterpriseSession: EnterpriseAuthSession | undefined
+  let enterpriseCredential: EnterpriseCredentialRecord | undefined
+  let enterpriseHostBootstrap: EnterpriseHostBootstrap | undefined
+  const enterpriseRefreshScheduler: {
+    schedule: ((session: EnterpriseAuthSession) => void) | undefined
+  } = { schedule: undefined }
+  let enterpriseSignOut: Promise<void> | undefined
+  if (enterpriseRelease !== undefined) {
+    const { safeStorage } = await import('electron')
+    enterpriseCredentialStore = new EnterpriseCredentialStore({
+      directory: join(app.getPath('userData'), 'enterprise-credentials'),
+      vault: {
+        isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+        encryptString: value => safeStorage.encryptString(value),
+        decryptString: value => safeStorage.decryptString(value),
+      },
+    })
+    enterpriseAuth = new EnterpriseAuthClient({
+      store: enterpriseCredentialStore,
+      cloudBaseUrl: enterpriseRelease.cloudOrigin,
+    })
+  }
   // Dock and Finder launches inherit only launchd's environment; every Host shares one login-shell read.
   const loginShellRead = new AbortController()
   // The probe runs in its own process group, which outlives Desktop unless the read is aborted.
@@ -525,6 +561,14 @@ async function main(): Promise<void> {
           segmentBytes: 256 * 1024, recordBytes: 4096, queuedBytes: 64 * 1024,
         })
         operationJournal.enqueue(JSON.stringify(record))
+      }, enterpriseHostBootstrap, async () => {
+        if (enterpriseAuth === undefined) throw new Error('desktop enterprise: authentication is unavailable')
+        const session = await enterpriseAuth.refresh()
+        enterpriseSession = session
+        const bootstrap = createEnterpriseHostBootstrap(session)
+        enterpriseHostBootstrap = bootstrap
+        enterpriseRefreshScheduler.schedule?.(session)
+        return bootstrap
       })
     return {
       start: async () => {
@@ -533,6 +577,10 @@ async function main(): Promise<void> {
         hostUrl = ready.url
         if (ready.injections === undefined) throw new Error('Desktop Host did not provide boot injections')
         injections = ready.injections
+        if (enterpriseMode) {
+          analyticsEnabled = false
+          return
+        }
         welcomeBackend = await connectDesktopWelcome(ready.url, (input, init) => net.fetch(input, init), async () => (await session.defaultSession.cookies.get({ url: ready.url })).map(cookie => `${cookie.name}=${cookie.value}`).join('; '))
         analyticsEnabled = await welcomeBackend.analyticsEnabled().catch(() => false)
         if (!reportedLaunch) { reportedLaunch = true; void track('desktop_app_launch', {}) }
@@ -588,11 +636,37 @@ async function main(): Promise<void> {
       updateTasks: (action: 'inspect' | 'lock' | 'unlock') => host.updateTasks(action),
       inspectQuit: () => host.inspectQuit(),
       resolveDragResource: (address: string, signal?: AbortSignal) => host.resolveDragResource(address, signal),
+      updateEnterpriseBootstrap: (value: EnterpriseHostBootstrap) => host.updateEnterpriseBootstrap(value),
     }
   }, (state) => {
     if (state.phase === 'error') reportFatal(state.failure, 'host')
     else if (!shuttingDown) backendReady = state.phase === 'ready'
   })
+  const enterpriseLifecycle = enterpriseRelease === undefined || enterpriseAuth === undefined
+    || enterpriseCredentialStore === undefined ? undefined : new EnterpriseLifecycle({
+      revoke: () => enterpriseAuth.revoke(),
+      stopHost: async () => { enterpriseHostBootstrap = undefined; await backend.stop() },
+      clearCredential: () => enterpriseCredentialStore.clear(enterpriseRelease.cloudOrigin),
+    })
+  const enterpriseAccessRefresh = enterpriseAuth === undefined || enterpriseLifecycle === undefined
+    ? undefined : new EnterpriseAccessRefresh({
+      client: enterpriseAuth,
+      apply: async (session) => {
+        enterpriseSession = session
+        enterpriseHostBootstrap = createEnterpriseHostBootstrap(session)
+        if (backend.host !== undefined) await backend.host.updateEnterpriseBootstrap(enterpriseHostBootstrap)
+      },
+      onSignOut: async (error) => {
+        await enterpriseLifecycle.handleAuthFailure(error)
+        enterpriseSession = undefined
+        enterpriseHostBootstrap = undefined
+        enterpriseCredential = undefined
+        enteredWorkspace = false
+        mainWindow?.hide()
+        await showWelcome()
+      },
+    })
+  enterpriseRefreshScheduler.schedule = (session) => { enterpriseAccessRefresh?.start(session) }
 
   const updateErrors = new WeakMap<DesktopUpdateState, Promise<void>>()
   const showUpdateFailure = (state: DesktopUpdateState): Promise<void> => {
@@ -652,6 +726,90 @@ async function main(): Promise<void> {
     if (backend.host === undefined || welcomeBackend === undefined) throw new Error('desktop welcome: backend unavailable')
     return welcomeBackend.read()
   }
+  const enterpriseWelcomeState = (): {
+    serverUrl: string
+    email?: string
+    teamName?: string
+    signedIn: boolean
+  } => {
+    if (enterpriseRelease === undefined) throw new Error('desktop enterprise: release is unavailable')
+    const email = enterpriseSession?.bootstrap.user.email ?? enterpriseCredential?.email
+    return {
+      serverUrl: enterpriseRelease.cloudOrigin,
+      ...(email === undefined ? {} : { email }),
+      ...(enterpriseSession === undefined ? {} : { teamName: enterpriseSession.bootstrap.team.name }),
+      signedIn: enterpriseSession !== undefined,
+    }
+  }
+  const startEnterpriseBackend = (): Promise<void> => {
+    startup ??= (async () => {
+      await navigateMain(applicationUrl)
+      await backend.start(async () => {
+        await Promise.all([manager.applyRelease(), prepareHostEnvironment()])
+      })
+      if (backend.host !== undefined) updateJournal?.action('workspace-ready')
+    })().catch((error: unknown) => {
+      updateJournal?.action('workspace-failed')
+      reportFatal(error, 'main')
+      throw error
+    }).finally(() => { startup = undefined })
+    return startup
+  }
+  const startEnterpriseSession = async (session: EnterpriseAuthSession): Promise<void> => {
+    if (enterpriseRelease === undefined || enterpriseCredentialStore === undefined) {
+      throw new Error('desktop enterprise: authentication is unavailable')
+    }
+    if (new URL(session.bootstrap.cloudBaseUrl).origin !== enterpriseRelease.cloudOrigin) {
+      throw new Error('desktop enterprise: cloud origin changed during sign-in')
+    }
+    paths = resolveEnterpriseDesktopPaths({
+      cloudBaseUrl: enterpriseRelease.cloudOrigin,
+      userId: session.bootstrap.user.id,
+    })
+    activeProject = paths.profile
+    manager = new DesktopProjectManager(paths, resources)
+    enterpriseSession = session
+    enterpriseHostBootstrap = createEnterpriseHostBootstrap(session)
+    enterpriseCredential = await enterpriseCredentialStore.load(enterpriseRelease.cloudOrigin)
+    await startEnterpriseBackend()
+    await enterWorkspace()
+    enterpriseAccessRefresh?.start(session)
+  }
+  const restoreEnterpriseSession = async (): Promise<void> => {
+    if (enterpriseAuth === undefined || enterpriseRelease === undefined) return
+    try {
+      const session = await enterpriseAuth.restore(enterpriseRelease.cloudOrigin)
+      if (session !== undefined) {
+        await startEnterpriseSession(session)
+        return
+      }
+    } catch (error) {
+      if (!(error instanceof EnterpriseAuthTransportError) && !(error instanceof EnterpriseSignOutRequired)) {
+        console.error('desktop enterprise: stored sign-in could not be restored', error)
+      }
+    }
+    enterpriseSession = undefined
+    enterpriseHostBootstrap = undefined
+    enterpriseCredential = undefined
+    enteredWorkspace = false
+    mainWindow?.hide()
+    await showWelcome()
+  }
+  const signOutEnterprise = (): Promise<void> => {
+    if (enterpriseSignOut !== undefined) return enterpriseSignOut
+    const run = (async () => {
+      if (enterpriseLifecycle === undefined) return
+      enterpriseAccessRefresh?.clear()
+      await enterpriseLifecycle.logout()
+      enterpriseSession = undefined
+      enterpriseCredential = undefined
+      enteredWorkspace = false
+      mainWindow?.hide()
+      await showWelcome()
+    })().finally(() => { if (enterpriseSignOut === run) enterpriseSignOut = undefined })
+    enterpriseSignOut = run
+    return run
+  }
   stopForRecovery = async () => {
     const reports = stopOperationReports()
     try { await backend.close() }
@@ -675,7 +833,6 @@ async function main(): Promise<void> {
     return startup
   }
 
-  const manifest: unknown = JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8'))
   const updateChannel = desktopUpdateChannel(manifest)
   const updates = new DesktopUpdateCoordinator(
     publishUpdate,
@@ -748,7 +905,6 @@ async function main(): Promise<void> {
     // A confirmation on a hidden window would go unseen, so it waits for the next show; the mandatory
     // flow keeps its own taskbar and Dock attention instead.
     if (!isMandatory()) await windowShown()
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- A quit can begin while the show is awaited.
     if (quitting) return state
     return updates.install(version)
   }
@@ -1248,7 +1404,38 @@ async function main(): Promise<void> {
       return Promise.resolve()
     }
     openingWelcome ??= (async () => {
-      welcomeWindow = await openWelcomeWindow(locale, {
+      const operations: WelcomeOperations = enterpriseMode ? {
+        analyticsEnabled: () => Promise.resolve(false),
+        takeNotice: () => Promise.resolve(undefined),
+        startSignIn: () => Promise.reject(new Error('desktop welcome: consumer sign-in is unavailable')),
+        cancelSignIn: () => Promise.reject(new Error('desktop welcome: consumer sign-in is unavailable')),
+        copySignInLink: () => Promise.reject(new Error('desktop welcome: consumer sign-in is unavailable')),
+        saveApiKey: () => Promise.resolve({ ok: false }),
+        skip: () => Promise.resolve(),
+        enterprise: {
+          state: () => Promise.resolve(enterpriseWelcomeState()),
+          signIn: async (input) => {
+            if (enterpriseAuth === undefined || enterpriseRelease === undefined || enterpriseCredentialStore === undefined) {
+              return { ok: false, code: 'server' }
+            }
+            const email = input.email.trim()
+            if (email === '' || input.password === '') return { ok: false, code: 'invalid_credentials' }
+            try {
+              const session = await enterpriseAuth.login(
+                enterpriseRelease.cloudOrigin, email, input.password, readDeviceInfo(),
+              )
+              enterpriseCredential = await enterpriseCredentialStore.load(enterpriseRelease.cloudOrigin)
+              await startEnterpriseSession(session)
+              return { ok: true }
+            } catch (error) {
+              if (error instanceof EnterpriseLoginError) return { ok: false, code: error.code }
+              console.error('desktop enterprise: sign-in could not start the workspace', error)
+              return { ok: false, code: 'server' }
+            }
+          },
+          signOut: signOutEnterprise,
+        },
+      } : {
         analytics: track,
         analyticsEnabled: () => Promise.resolve(analyticsEnabled),
         takeNotice: () => {
@@ -1279,7 +1466,8 @@ async function main(): Promise<void> {
           return { ok: true }
         },
         skip: enterWorkspace,
-      })
+      }
+      welcomeWindow = await openWelcomeWindow(locale, operations)
       const window = welcomeWindow
       window.once('closed', () => {
         void welcomeBackend?.account.state().then((state) => {
@@ -1319,6 +1507,10 @@ async function main(): Promise<void> {
   focusPrimaryWindow = () => {
     if (quitting) return
     if (isMandatory()) { mandatoryUI?.focus(); return }
+    if (enterpriseMode && !enteredWorkspace) {
+      void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
+      return
+    }
     const window = welcomeWindow ?? mainWindow
     if (window === undefined || window.isDestroyed()) {
       try { createMainWindow() } catch (error) { reportFatal(error, 'main'); return }
@@ -1353,6 +1545,8 @@ async function main(): Promise<void> {
     backgroundNotice?.dispose()
     tray?.dispose()
     stopAccount?.()
+    enterpriseAccessRefresh?.dispose()
+    enterpriseHostBootstrap = undefined
     if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) welcomeWindow.hide()
     if (mainWindow !== undefined && !mainWindow.isDestroyed()) mainWindow.hide()
     updateSchedule.dispose()
@@ -1435,7 +1629,8 @@ async function main(): Promise<void> {
     }).catch((error: unknown) => { console.error(error) })
   }
   automaticCheck()
-  await reconcileBackend().catch(() => undefined)
+  if (enterpriseMode) await restoreEnterpriseSession()
+  else await reconcileBackend().catch(() => undefined)
   // Window lifecycle callbacks run while backend startup is pending.
   if (isQuitting()) return
   const window = currentMainWindow()

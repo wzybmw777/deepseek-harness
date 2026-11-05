@@ -264,8 +264,8 @@ export async function connectFreshWorkspace(page: Page, root: string, name = 'wo
 export async function connectFreshWorkspaceZh(page: Page, root: string, name = 'workspace', modelAvailable = true): Promise<void> {
   mkdirSync(join(root, name), { recursive: true })
   await revealNavigationDrawer(page, 'zh')
-  await page.getByRole('button', { name: '添加工作区', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: '选择工作区目录' })
+  await page.getByRole('button', { name: '新建项目', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '选择项目文件夹' })
   await dialog.waitFor({ timeout: 10_000 })
   await dialog.getByRole('button', { name: '编辑路径' }).click()
   const pathInput = dialog.getByRole('textbox', { name: '编辑路径' })

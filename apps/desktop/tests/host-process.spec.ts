@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
@@ -91,6 +91,35 @@ afterEach(async () => {
 })
 
 describe('desktop host process', () => {
+  it('sends the validated enterprise bootstrap before reporting readiness', async () => {
+    const runtime = projectWithHost(`
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })
+process.on('message', message => {
+  if (message.type === 'enterprise-bootstrap') {
+    writeFileSync(join(process.argv[3], 'bootstrap.json'), JSON.stringify(message.value))
+    process.send({ type: 'ready', url: 'http://127.0.0.1:3080/' })
+  }
+  if (message.type === 'shutdown') process.send({ type: 'shutdown-complete' }, () => process.disconnect())
+})
+`)
+    const bootstrap = {
+      cloudBaseUrl: 'https://cloud.example.com',
+      accessToken: 'short-lived-access',
+      accessExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      profileKey: 'a'.repeat(64),
+      user: { id: 'user-a', email: 'a@example.com', name: 'Alice', roleId: 'member' },
+      team: { id: 'team-a', name: 'Team A', slug: 'team-a' },
+    }
+    const host = new DesktopHostProcess(process.execPath, runtime, runtime, undefined, process.env,
+      undefined, undefined, undefined, undefined, undefined, bootstrap)
+    hosts.push(host)
+    await host.start()
+    expect(JSON.parse(readFileSync(join(runtime, 'bootstrap.json'), 'utf8'))).toEqual(bootstrap)
+    await host.stop()
+  })
+
   it('retains the announced run identity when startup fails before readiness', async () => {
     const runtime = projectWithHost(`
 process.send({ type: 'starting', runId: 'c254ab28-97c9-4382-95e6-2db9c66f98c8' })

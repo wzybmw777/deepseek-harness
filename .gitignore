@@ -37,6 +37,10 @@ python/**/__pycache__/
 python/**/.pytest_cache/
 packages/**/__pycache__/
 apps/web/dist/
+apps/enterprise/dist/
+!apps/enterprise/src/lib/
+!apps/enterprise/src/lib/**
+.enterprise-data/
 .artifacts/
 .dsh-build/
 .dsh-report/

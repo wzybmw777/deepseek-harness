@@ -6,6 +6,7 @@ import { createBrowserStore } from '../src/client/browser/store.ts'
 import { createIframePage } from '../src/client/pages.ts'
 import type { BrowserPageFactory, BrowserPageOptions } from '../src/client/browser/BrowserPage.ts'
 import { browserAddressCheckpoint } from '../src/client/browser/BrowserPersistence.ts'
+import { BROWSER_SANDBOX_PREFERENCE_KEY, createBrowserSandboxPreference } from '../src/client/browser/sandbox-preference.ts'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { emptyBrowserFrame, type BrowserFrameState } from '../src/client/browser/BrowserFrame.ts'
 
@@ -25,8 +26,9 @@ function lifetime(): AbortController {
 function harness() {
   const id = `browser-controller-test-${String(++sequence)}`
   const store = createBrowserStore().create(id)
+  const sandboxPreference = createBrowserSandboxPreference()
   let open = true
-  const face = createBrowserControllers(store.actions, createIframePage, () => open)
+  const face = createBrowserControllers(store.actions, createIframePage, () => open, sandboxPreference)
   disposables.push(face)
   const host = document.createElement('div')
   host.id = id
@@ -41,7 +43,7 @@ function harness() {
     if (element === null) throw new Error('expected a mounted iframe')
     return element
   }
-  return { store, face, mount, iframe, close: () => { open = false } }
+  return { store, sandboxPreference, face, mount, iframe, close: () => { open = false } }
 }
 
 afterEach(async () => {
@@ -116,14 +118,18 @@ describe('BrowserController', () => {
     }
     const store = createBrowserStore().create('provider-callbacks')
     const openTab = vi.fn()
+    const sandboxPreference = createBrowserSandboxPreference()
     const controller = new BrowserController({ tabId: TAB, signal: lifetime().signal, applicationOrigin: APP,
-      actions: store.actions, initial: saved, createPage: pageFactory, openTab })
+      actions: store.actions, initial: saved, createPage: pageFactory, sandboxPreference, openTab })
     disposables.push(controller)
     const provider = callbacks[0]!
     provider.openRequested('file:/secret')
     expect(controller.getSnapshot().addressFailure).toBe('protocol')
     provider.openRequested('https://new.example/path')
     expect(openTab).toHaveBeenCalledExactlyOnceWith('https://new.example/path')
+    sandboxPreference.setEnabled(true)
+    sandboxPreference.setEnabled(true)
+    expect(sandboxPreference.getSnapshot()).toBe(true)
     controller.setSandbox(false)
     frames.set({ ...emptyBrowserFrame(), loading: true })
     expect(controller.getSnapshot().restoreTarget?.title).toBe('Saved')
@@ -141,10 +147,11 @@ describe('BrowserController', () => {
 
   it('ignores navigation commands after its tab occurrence ends', async () => {
     const store = createBrowserStore().create('browser-controller-ended-test')
+    const sandboxPreference = createBrowserSandboxPreference()
     const tabLifetime = lifetime()
     const controller = new BrowserController({
       tabId: TAB, signal: tabLifetime.signal, applicationOrigin: APP, actions: store.actions,
-      initial: undefined, createPage: createIframePage, openTab: vi.fn(),
+      initial: undefined, createPage: createIframePage, sandboxPreference, openTab: vi.fn(),
     })
     disposables.push(controller)
     tabLifetime.abort()
@@ -220,7 +227,7 @@ describe('BrowserController', () => {
     expect(face.keyedHooks.browserState(TAB)).toBe(replacement)
   })
 
-  it('loads loopback under sandbox and reloads it across sandbox changes', () => {
+  it('loads loopback with the persisted global sandbox policy', () => {
     const { store, face, mount, iframe } = harness()
     const tabLifetime = lifetime()
     mount(tabLifetime.signal)
@@ -228,22 +235,54 @@ describe('BrowserController', () => {
 
     face.loadUrl(TAB, 'http://localhost:5173/app')
     expect(state.getSnapshot().frame).toMatchObject({
-      sandboxEnabled: true,
+      sandboxEnabled: false,
       target: { url: 'http://localhost:5173/app' },
     })
+    expect(iframe().getAttribute('sandbox')).toBeNull()
     const beforeToggle = store.getSnapshot().byTab[TAB]!.request!.revision
 
-    face.setSandbox(TAB, false)
-    expect(state.getSnapshot().frame.sandboxEnabled).toBe(false)
+    face.setSandbox(TAB, true)
+    expect(state.getSnapshot().frame.sandboxEnabled).toBe(true)
+    expect(iframe().getAttribute('sandbox')).not.toBeNull()
     expect(iframe().src).toBe('http://localhost:5173/app')
     expect(store.getSnapshot().byTab[TAB]?.request?.revision).toBe(beforeToggle + 1)
+    expect(JSON.parse(localStorage.getItem(BROWSER_SANDBOX_PREFERENCE_KEY)!)).toBe(true)
+    expect(createBrowserSandboxPreference().getSnapshot()).toBe(true)
 
-    face.setSandbox(TAB, true)
+    face.setSandbox(TAB, false)
     expect(state.getSnapshot().frame).toMatchObject({
-      sandboxEnabled: true,
+      sandboxEnabled: false,
       target: { url: 'http://localhost:5173/app' },
     })
+    expect(iframe().getAttribute('sandbox')).toBeNull()
     expect(store.getSnapshot().byTab[TAB]?.request?.revision).toBe(beforeToggle + 2)
+    expect(JSON.parse(localStorage.getItem(BROWSER_SANDBOX_PREFERENCE_KEY)!)).toBe(false)
+  })
+
+  it('synchronizes the sandbox policy across open tabs', () => {
+    const h = harness()
+    h.mount(lifetime().signal)
+    h.face.loadUrl(TAB, 'http://localhost:5173/one')
+    const secondTab = 'second-tab' as TabId
+    const secondHost = document.createElement('div')
+    secondHost.id = 'second-browser-controller-host'
+    document.body.append(secondHost)
+    hosts.push(secondHost)
+    h.face.mount({
+      tabId: secondTab, signal: lifetime().signal, viewportId: secondHost.id, applicationOrigin: APP,
+      initial: undefined, initialUrl: 'http://localhost:5173/two', openTab: vi.fn(),
+    })
+    const secondFrame = (): HTMLIFrameElement | null => secondHost.querySelector('iframe')
+    expect(h.iframe().getAttribute('sandbox')).toBeNull()
+    expect(secondFrame()?.getAttribute('sandbox')).toBeNull()
+
+    h.face.setSandbox(TAB, true)
+    expect(h.iframe().getAttribute('sandbox')).not.toBeNull()
+    expect(secondFrame()?.getAttribute('sandbox')).not.toBeNull()
+
+    h.face.setSandbox(secondTab, false)
+    expect(h.iframe().getAttribute('sandbox')).toBeNull()
+    expect(secondFrame()?.getAttribute('sandbox')).toBeNull()
   })
 
   it('loads public HTTP without changing the sandbox policy', () => {
@@ -254,7 +293,7 @@ describe('BrowserController', () => {
     face.loadUrl(TAB, 'http://example.test/path')
     const state = face.keyedHooks.browserState(TAB)!
     expect(state.getSnapshot().frame).toMatchObject({
-      sandboxEnabled: true,
+      sandboxEnabled: false,
       target: { url: 'http://example.test/path' },
     })
     const beforeFailure = state.getSnapshot().frame

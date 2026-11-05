@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/enterprise-console/README.md
+/:
+  en: 9caf9dd1eb7b9bb0
+  zh: a874e064f2dd567d
+/deepseek-ai-dsh-experimental-enterprise-console:
+  en: a3e491394569c811
+  zh: d6c4da2ee2d316a4
+/deepseek-ai-dsh-experimental-enterprise-console/summary:
+  en: 5281e2c63a66d3b8
+  zh: 177a85ad69dae58b
+/deepseek-ai-dsh-experimental-enterprise-console/table-of-contents:
+  en: 70e52780f84b7f4c
+  zh: a8363b179a8831de
+/deepseek-ai-dsh-experimental-enterprise-console/use-this-package:
+  en: aa76faf830f6051a
+  zh: 6004faf2d946a551
+/deepseek-ai-dsh-experimental-enterprise-console/authentication-and-harness-access:
+  en: 928e0876144b8af9
+  zh: 79c69bab9ed2db32
+/deepseek-ai-dsh-experimental-enterprise-console/plugins:
+  en: 1b5ae21ec07bf83c
+  zh: a1bf364ad1ee68d6
+/deepseek-ai-dsh-experimental-enterprise-console/team-resources:
+  en: be2f810123f0fc18
+  zh: ed36a43a912c1bcb
+/deepseek-ai-dsh-experimental-enterprise-console/remote-browser:
+  en: 10d1df710612fec8
+  zh: 3942637e029aa737
+/deepseek-ai-dsh-experimental-enterprise-console/billing-and-quota:
+  en: 5a0a385eab14f16f
+  zh: d6dd1a1eb87cbfc3
+/deepseek-ai-dsh-experimental-enterprise-console/model-experience:
+  en: 4a0f7d69268e2a40
+  zh: 55ea14e335d68aee
+/deepseek-ai-dsh-experimental-enterprise-console/model-experience/kv-cache-effect:
+  en: 27ce59751834bd4a
+  zh: 9200166544fd6eca
+/deepseek-ai-dsh-experimental-enterprise-console/known-limitations-and-deferred-work:
+  en: cb3c0c4056f725c9
+  zh: 60960693ab111ac4
+/deepseek-ai-dsh-experimental-enterprise-console/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: e88aeb617ffb74ea

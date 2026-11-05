@@ -5,6 +5,7 @@ import { Toast } from '@deepseek-ai/dsh-client-ui-primitives/src/Toast.tsx'
 import { StateDot } from '@deepseek-ai/dsh-client-ui-primitives/src/StateDot.tsx'
 import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
 import type { WelcomeApi } from '../welcome-api.ts'
+import { EnterpriseWelcome } from './EnterpriseWelcome.tsx'
 
 type Page = 'entry' | 'key' | 'account'
 
@@ -15,6 +16,11 @@ type Page = 'entry' | 'key' | 'account'
  * @returns welcome pages with fixed bottom actions.
  */
 export function Welcome({ api }: { api: WelcomeApi }) {
+  if (api.enterpriseMode) return <EnterpriseWelcome api={api} />
+  return <CommunityWelcome api={api} />
+}
+
+function CommunityWelcome({ api }: { api: WelcomeApi }) {
   const { messages: m } = api
   const [expiryNotice, setExpiryNotice] = useState(false)
   const [page, setPage] = useState<Page>('entry')

@@ -78,7 +78,11 @@ describe('ui-settings-models apply', () => {
       await host.await()
       const rows: IndexInjection[] = []
       ctx.emit('webserver/index-inject', rows, PAGE_PEER)
-      expect(rows).toEqual([{ kind: 'global', name: ONBOARDING_CONFIG_GLOBAL, value: { credentialOnboarding: false } }])
+      expect(rows).toEqual([{
+        kind: 'global',
+        name: ONBOARDING_CONFIG_GLOBAL,
+        value: { credentialOnboarding: false, showSettingsSection: true },
+      }])
       for (const row of rows) if (row.kind === 'global') vi.stubGlobal(row.name, row.value)
       const plugin = ctx.plugin({ inject: [...inject], apply })
       await plugin.await()
@@ -98,8 +102,9 @@ describe('ui-settings-models apply', () => {
   })
 
   it('defaults to browser onboarding and rejects malformed bootstrap options', async () => {
-    expect(hostPlugin.Config({})).toEqual({ credentialOnboarding: true })
+    expect(hostPlugin.Config({})).toEqual({ credentialOnboarding: true, showSettingsSection: true })
     expect(hostPlugin.Config['~standard'].validate({ credentialOnboarding: 'false' })).toHaveProperty('issues')
+    expect(hostPlugin.Config['~standard'].validate({ showSettingsSection: 'false' })).toHaveProperty('issues')
     const { ctx } = await bench()
     try {
       vi.stubGlobal(ONBOARDING_CONFIG_GLOBAL, { credentialOnboarding: 'false' })
@@ -114,6 +119,20 @@ describe('ui-settings-models apply', () => {
       'slots', 'locale', 'remote', 'remote.credentials', 'remote.llm', 'remote.settings', 'remote.session',
       'configForms', 'settingsSchema',
     ])
+  })
+
+  it('keeps onboarding while hiding the models entry when the product disables it', async () => {
+    const b = await bench()
+    declare(b.slots)
+    vi.stubGlobal(ONBOARDING_CONFIG_GLOBAL, { credentialOnboarding: true, showSettingsSection: false })
+    try {
+      await b.ctx.plugin({ inject: [...inject], apply }).await()
+      expect(b.slots.entries('settings.section')).toHaveLength(0)
+      expect(b.slots.entries('settings.onboarding').map(entry => entry.options.id))
+        .toEqual(['welcome-notice', 'deepseek-official'])
+    } finally {
+      await b.ctx.fiber.dispose()
+    }
   })
 
   it('registers the models nav entry for declarations before or after apply', async () => {

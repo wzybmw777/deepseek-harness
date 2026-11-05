@@ -1,0 +1,35 @@
+# Enterprise console overlay. The data directory is intentionally outside the
+# frontend dist so a rebuild never replaces accounts, teams, or audit history.
+- insert:
+    - id: enterprise-console
+      name: './lib/index.js'
+      config:
+        distRoot: !!js process.env.DSH_ENTERPRISE_DIST ?? process.getBuiltinModule('node:path').join(process.cwd(), 'apps/enterprise/dist')
+        dataDir: !!js process.env.DSH_ENTERPRISE_DATA ?? process.getBuiltinModule('node:path').join(process.cwd(), '.enterprise-data')
+        bootstrapAdminEmail: !!js process.env.DSH_ENTERPRISE_ADMIN_EMAIL ?? 'admin@echoai.best'
+        brandName: !!js process.env.DSH_ENTERPRISE_BRAND ?? '织流企业 AI 工作台'
+        tenantRoot: !!js process.env.DSH_ENTERPRISE_TENANTS ?? process.getBuiltinModule('node:path').join(process.cwd(), '.enterprise-data', 'tenants')
+        tenantDshEntry: !!js process.env.DSH_ENTERPRISE_TENANT_ENTRY ?? process.getBuiltinModule('node:path').join(process.cwd(), 'apps/cli/lib/bin.js')
+        tenantSourceRoot: !!js process.env.DSH_ENTERPRISE_TENANT_SOURCE_ROOT ?? process.cwd()
+        tenantTemplateHome: !!js process.env.DSH_ENTERPRISE_TEMPLATE_HOME ?? process.env.DSH_HOME ?? process.getBuiltinModule('node:path').join(process.env.HOME ?? process.cwd(), '.dsh')
+        tenantProfile: !!js process.env.DSH_ENTERPRISE_TENANT_PROFILE ?? 'web'
+        tenantPublicOrigin: !!js process.env.DSH_ENTERPRISE_PUBLIC_ORIGIN
+        verificationWebhookUrl: !!js process.env.DSH_ENTERPRISE_VERIFICATION_WEBHOOK_URL
+        verificationWebhookToken: !!js process.env.DSH_ENTERPRISE_VERIFICATION_WEBHOOK_TOKEN
+        tenantContainerImage: !!js process.env.DSH_ENTERPRISE_TENANT_IMAGE ?? 'localhost/dsh-enterprise-tenant:local'
+        tenantContainerPodman: !!js process.env.DSH_ENTERPRISE_PODMAN ?? 'podman'
+        tenantContainerMemoryMb: !!js Number(process.env.DSH_ENTERPRISE_TENANT_MEMORY_MB ?? 1024)
+        tenantContainerPids: !!js Number(process.env.DSH_ENTERPRISE_TENANT_PIDS ?? 512)
+        tenantPortStart: !!js Number(process.env.DSH_ENTERPRISE_TENANT_PORT_START ?? 41000)
+        tenantPortEnd: !!js Number(process.env.DSH_ENTERPRISE_TENANT_PORT_END ?? 41999)
+        maxTenantProcesses: !!js Number(process.env.DSH_ENTERPRISE_MAX_TENANTS ?? 16)
+        tenantIdleTimeoutMinutes: !!js Number(process.env.DSH_ENTERPRISE_TENANT_IDLE_MINUTES ?? 30)
+        tenantStartTimeoutMs: !!js Number(process.env.DSH_ENTERPRISE_TENANT_START_TIMEOUT_MS ?? 90000)
+        browserChromePath: !!js process.env.DSH_ENTERPRISE_BROWSER_CHROME ?? '/opt/google/chrome/chrome'
+        browserXvfbPath: !!js process.env.DSH_ENTERPRISE_BROWSER_XVFB ?? '/usr/bin/Xvfb'
+        browserProxyUrl: !!js process.env.DSH_ENTERPRISE_BROWSER_PROXY ?? 'http://127.0.0.1:7890'
+        browserProxyBypass: !!js process.env.DSH_ENTERPRISE_BROWSER_PROXY_BYPASS ?? 'localhost,127.0.0.1,::1'
+        browserMaxSessions: !!js Number(process.env.DSH_ENTERPRISE_BROWSER_MAX_SESSIONS ?? 6)
+        browserMaxSessionsPerUser: !!js Number(process.env.DSH_ENTERPRISE_BROWSER_MAX_SESSIONS_PER_USER ?? 2)
+        browserIdleTimeoutMinutes: !!js Number(process.env.DSH_ENTERPRISE_BROWSER_IDLE_MINUTES ?? 10)
+        browserNavigationTimeoutMs: !!js Number(process.env.DSH_ENTERPRISE_BROWSER_NAVIGATION_TIMEOUT_MS ?? 45000)

@@ -1,8 +1,9 @@
 /**
- * Models settings and product-onboarding plugin, browser half. It registers
- * the Models page plus the ordered preview-notice and official-DeepSeek
- * onboarding dialogs, whose UI shares this package's modal wrapper. The Host
- * settings and credential contracts stay behind their existing wire APIs.
+ * Models settings and product-onboarding plugin, browser half. It optionally
+ * registers the Models page, then the ordered preview-notice and
+ * official-DeepSeek onboarding dialogs, whose UI shares this package's modal
+ * wrapper. The Host settings and credential contracts stay behind their
+ * existing wire APIs.
  * Export discipline:
  * packages/client/AGENTS.md.
  */
@@ -133,7 +134,7 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'ui-settings-models: pushed invalidations')
 
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
+  if (configured.showSettingsSection) ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'models',
     order: 10,

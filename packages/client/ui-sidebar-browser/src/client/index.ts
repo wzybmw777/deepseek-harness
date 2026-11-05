@@ -10,14 +10,17 @@ import { BrowserBody, type BrowserBodyProps } from './view/BrowserBody.tsx'
 import { BrowserTitle } from './view/BrowserTitle.tsx'
 import { createBrowserControllers } from './browser/BrowserController.ts'
 import type { BrowserInjected } from './browser/BrowserController.ts'
+import type { BrowserPageFactory } from './browser/BrowserPage.ts'
+import { browserRemoteEndpoint } from './browser/remote/endpoint.ts'
+import { createRemoteBrowserPage } from './browser/remote/pages.ts'
 import { createIframePage } from './pages.ts'
 import { createElectronPage } from './electron/pages.ts'
 import type { DesktopBrowserBridge } from '../types.ts'
 import { browserWorkspace } from './electron/workspace.ts'
-import type { BrowserPageFactory } from './browser/BrowserPage.ts'
 import { BROWSER_ID, browserDefinition } from './definition.tsx'
 import { en, ja, es, fr, de, ru, pt, zh } from './locales.ts'
 import { createBrowserStore } from './browser/store.ts'
+import { createBrowserSandboxPreference } from './browser/sandbox-preference.ts'
 
 export type { BrowserBodyProps } from './view/BrowserBody.tsx'
 export type { BrowserControllerState, BrowserInjected, BrowserMountRequest } from './browser/BrowserController.ts'
@@ -65,6 +68,7 @@ export function apply(ctx: Context): void {
     }), 'ui-sidebar-browser: shortcut')
   })
   const store = createBrowserStore()
+  const sandboxPreference = createBrowserSandboxPreference()
   const openTabs = ctx.sidebarRight.openTabs
   const carrier = (globalThis as typeof globalThis & {
     dshDesktop?: { readonly protocolVersion: number; readonly browser?: DesktopBrowserBridge }
@@ -88,13 +92,18 @@ export function apply(ctx: Context): void {
           return existing
         }
         const controller = createBrowserControllers(actions, factory(sessionId), tabId =>
-          openTabs.getSnapshot().some(tab => tab.sessionId === sessionId && tab.tabId === tabId))
+          openTabs.getSnapshot().some(tab => tab.sessionId === sessionId && tab.tabId === tabId),
+        sandboxPreference)
         controllers.set(sessionId, controller)
         return controller
       },
     }, BrowserBody)), 'ui-sidebar-browser.body')
   }
-  if (desktop === undefined) installFrames(ctx, () => createIframePage)
+  const createWebPage: BrowserPageFactory = (options) => {
+    const endpoint = browserRemoteEndpoint()
+    return endpoint === undefined ? createIframePage(options) : createRemoteBrowserPage(options, endpoint)
+  }
+  if (desktop === undefined) installFrames(ctx, () => createWebPage)
   else ctx.inject(['workspaces'], (scope) => {
     installFrames(scope, sessionId => options => createElectronPage(options, desktop,
       signal => browserWorkspace(scope.workspaces.list, sessionId, signal)))

@@ -222,7 +222,7 @@ describe('PluginManagerController', () => {
     expect(state().packages[0]!.error).toBeUndefined()
   })
 
-  it('starts idle, reads the inventory then the bundles and entries on first use, and folds concurrent loads', async () => {
+  it('starts idle, reads the inventory, bundles, and entries on first use, and folds concurrent loads', async () => {
     const gate = deferred<ReturnType<typeof ok<BundleInfo[]>>>()
     const { plugins, inventory, face, state, controller } = bench({
       listBundles: vi.fn().mockReturnValueOnce(gate.promise).mockResolvedValue(ok([BUNDLE])),
@@ -242,6 +242,26 @@ describe('PluginManagerController', () => {
     expect(plugins.listPlugins).toHaveBeenCalledTimes(2)
     face.ensure()
     expect(plugins.listBundles).toHaveBeenCalledTimes(2)
+  })
+
+  it('starts the bundle and entry reads while the inventory is still pending', async () => {
+    const inventoryGate = deferred<ReturnType<typeof ok<{ entries: never[]; managementAvailable: true }>>>()
+    const inventory = vi.fn().mockReturnValueOnce(inventoryGate.promise)
+    const { plugins, controller } = bench({ inventory })
+    const loading = controller.load()
+    await Promise.resolve()
+    expect(plugins.listBundles).toHaveBeenCalledOnce()
+    expect(plugins.listPlugins).toHaveBeenCalledOnce()
+    inventoryGate.resolve(ok({ entries: [], managementAvailable: true }))
+    await loading
+  })
+
+  it.each(['listBundles', 'listPlugins'] as const)('reports a rejected %s read as an error', async (method) => {
+    const { state, controller } = bench({
+      [method]: vi.fn().mockRejectedValue(new Error('transport down')),
+    })
+    await controller.load()
+    expect(state().status).toBe('error')
   })
 
   it('keeps cached packages while a manual refresh reads and ignores repeated refreshes without a success notice', async () => {
@@ -291,7 +311,7 @@ describe('PluginManagerController', () => {
     expect(state()).toMatchObject({ status: 'ready', refreshStatus: 'refreshing', notice: null })
     expect(state().packages).toBe(packages)
     await vi.advanceTimersByTimeAsync(0)
-    expect(plugins.listBundles).toHaveBeenCalledTimes(2)
+    expect(plugins.listBundles).toHaveBeenCalledTimes(3)
     gate.resolve(ok([BUNDLE]))
     await vi.advanceTimersByTimeAsync(400)
     expect(state().refreshStatus).toBe('idle')
@@ -377,7 +397,7 @@ describe('PluginManagerController', () => {
     plugins.listBundles.mockReturnValueOnce(gate.promise)
     const loading = controller.load()
     await vi.advanceTimersByTimeAsync(0)
-    expect(plugins.listBundles).toHaveBeenCalledOnce()
+    expect(plugins.listBundles).toHaveBeenCalledTimes(2)
     expect(state().refreshStatus).toBe('failed')
     gate.resolve(ok([BUNDLE]))
     await loading

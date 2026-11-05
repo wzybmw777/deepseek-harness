@@ -6,6 +6,7 @@ import { z } from 'zod'
 import type { PlatformSession } from '@deepseek-ai/dsh-deepseek-account'
 import { desktopNodeEnvironment } from './node-environment.ts'
 import { parsePluginOperationRecord, type PluginOperationRecord, type PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
+import type { EnterpriseHostBootstrap } from './enterprise-bootstrap.ts'
 
 interface ReadyEvent {
   readonly type: 'ready'
@@ -44,6 +45,9 @@ type DesktopHostEvent = ReadyEvent | FatalEvent | PlatformSessionEvent | {
   readonly activeTasks: boolean
   readonly scheduledTasks: boolean
   readonly error?: string
+} | {
+  readonly type: 'enterprise-refresh'
+  readonly requestId: number
 }
 
 /** Correlated answer to one shell control request. */
@@ -57,6 +61,9 @@ export interface DesktopQuitInspection {
 
 /** Quit inspection deadline; a slower Host counts as unknown work and the shell asks before quitting. */
 export const QUIT_INSPECTION_DEADLINE_MS = 2_000
+
+/** Host-initiated token refresh deadline; the Host then fails the request instead of waiting forever. */
+const ENTERPRISE_REFRESH_DEADLINE_MS = 20_000
 
 const MAX_HOST_DIAGNOSTIC_CHARS = 64 * 1024
 const runIdSchema = z.uuid()
@@ -105,6 +112,8 @@ function isDesktopHostEvent(message: unknown): message is DesktopHostEvent {
     case 'quit-inspection':
       return Number.isSafeInteger(candidate.requestId) && typeof candidate.activeTasks === 'boolean'
         && typeof candidate.scheduledTasks === 'boolean' && (candidate.error === undefined || typeof candidate.error === 'string')
+    case 'enterprise-refresh':
+      return Number.isSafeInteger(candidate.requestId)
     default:
       return false
   }
@@ -187,6 +196,8 @@ export class DesktopHostProcess {
    * @param packageManager - Bundled pnpm entry and Node launcher directory, scoped to package operations.
    * @param onPlatformSession - Private credential updates for embedded Platform views.
    * @param onPluginOperation - Optional diagnostic sink; malformed records are ignored without failing the Host.
+   * @param enterpriseBootstrap - Short-lived enterprise identity sent after the Host announces startup.
+   * @param onEnterpriseRefresh - Electron-owned token rotation requested by the Host.
    */
   constructor(
     private readonly node: string,
@@ -200,6 +211,8 @@ export class DesktopHostProcess {
 
     private readonly onPlatformSession?: (session: PlatformSession | null) => void,
     private readonly onPluginOperation?: (record: PluginOperationRecord) => void,
+    private readonly enterpriseBootstrap?: EnterpriseHostBootstrap,
+    private readonly onEnterpriseRefresh?: () => Promise<EnterpriseHostBootstrap>,
   ) {}
 
   /**
@@ -217,6 +230,7 @@ export class DesktopHostProcess {
       this.projectDir,
       this.primaryRuntime ?? join(this.runtimeDir, '..', 'runtime', 'primary-runtime'),
       ...this.packageManager === undefined ? [] : [this.packageManager.pnpm, this.packageManager.nodeBin],
+      ...this.enterpriseBootstrap === undefined ? [] : [`--enterprise-cloud-origin=${this.enterpriseBootstrap.cloudBaseUrl}`],
     ], {
       cwd: this.projectDir,
       env: desktopNodeEnvironment(this.node, undefined, this.environment),
@@ -243,7 +257,17 @@ export class DesktopHostProcess {
         child.kill('SIGTERM')
         return
       }
-      if (message.type === 'starting') this.runId = message.runId
+      if (message.type === 'starting') {
+        this.runId = message.runId
+        if (this.enterpriseBootstrap !== undefined) {
+          child.send({ type: 'enterprise-bootstrap', value: this.enterpriseBootstrap }, (error) => {
+            if (error === null) return
+            this.fail(error)
+            child.kill('SIGTERM')
+          })
+        }
+      }
+      else if (message.type === 'enterprise-refresh') { void this.refreshEnterpriseBootstrap(message.requestId) }
       else if (message.type === 'ready') this.readyResolve({ url: message.url, injections: message.injections })
       else if (message.type === 'platform-session') this.onPlatformSession?.(message.session)
       else if (message.type === 'shutdown-complete') {
@@ -279,6 +303,53 @@ export class DesktopHostProcess {
     const response = await this.control({ type: 'update-tasks', action }, 10_000, 'desktop update: task inspection timed out', 'desktop update')
     if (response.type !== 'update-tasks') throw new Error('desktop update: Host answered with a different control response')
     return response.active
+  }
+
+  /**
+   * Replace the enterprise access grant without restarting the Host.
+   * @param value - refreshed bootstrap for the same profile, user, and team.
+   */
+  async updateEnterpriseBootstrap(value: EnterpriseHostBootstrap): Promise<void> {
+    const child = this.child
+    if (child === undefined || !child.connected || this.failureReported || this.stopping) {
+      throw new Error('desktop enterprise: Host is unavailable for access refresh')
+    }
+    await new Promise<void>((resolve, reject) => {
+      child.send({ type: 'enterprise-bootstrap', value }, (error) => {
+        if (error === null) resolve()
+        else reject(error)
+      })
+    })
+  }
+
+  private async refreshEnterpriseBootstrap(requestId: number): Promise<void> {
+    const child = this.child
+    if (child === undefined || !child.connected || this.failureReported || this.stopping) return
+    const reply = (message: object): void => {
+      child.send(message, (error) => {
+        if (error === null) return
+        this.fail(error)
+        child.kill('SIGTERM')
+      })
+    }
+    const refresh = this.onEnterpriseRefresh
+    if (refresh === undefined) {
+      reply({ type: 'enterprise-refresh', requestId, error: 'Enterprise access refresh is unavailable' })
+      return
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => { reject(new Error('Enterprise access refresh timed out')) }, ENTERPRISE_REFRESH_DEADLINE_MS)
+      timer.unref()
+    })
+    try {
+      const value = await Promise.race([refresh(), timeout])
+      reply({ type: 'enterprise-refresh', requestId, value })
+    } catch {
+      reply({ type: 'enterprise-refresh', requestId, error: 'Enterprise access refresh failed' })
+    } finally {
+      if (timer !== undefined) clearTimeout(timer)
+    }
   }
 
   /**

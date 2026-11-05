@@ -2,7 +2,10 @@
 
 import { delimiter, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
 import type { PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
+import { installEnterpriseDesktopRuntime } from '@deepseek-ai/dsh-experimental-enterprise-desktop'
 import { formatFatalDiagnostic } from './fatal-diagnostic.ts'
 import { loadLayeredEnv, loadProfileDirectory, reportSkippedBundles } from '@deepseek-ai/dsh-app-boot'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
@@ -18,10 +21,23 @@ import { installDesktopQuitInspection } from './quit-inspection.ts'
 import { installPlatformSessionPublisher } from './platform-session.ts'
 import { installOfficeEngineResolution } from './office-engine.ts'
 import { installOperationDiagnostics } from './operation-diagnostics.ts'
+import {
+  EnterpriseBootstrapService, installEnterpriseBootstrap, parseEnterpriseHostBootstrap, waitForEnterpriseBootstrap,
+  type EnterpriseBootstrapRefresh, type EnterpriseHostBootstrap,
+} from './enterprise-bootstrap.ts'
+
+const ENTERPRISE_REFRESH_TIMEOUT_MS = 15_000
+
+function enterpriseDesktopEntry(): string {
+  return pathToFileURL(createRequire(import.meta.url).resolve('@deepseek-ai/dsh-experimental-enterprise-desktop')).href
+}
 
 async function main(): Promise<void> {
   const runId = randomUUID() as PluginOperationRunId
   if (process.connected) process.send?.({ type: 'starting', runId }, (error) => { if (error !== null) console.error(error) })
+  const enterpriseOriginArgument = process.argv.find(argument => argument.startsWith('--enterprise-cloud-origin='))
+  const enterpriseOrigin = enterpriseOriginArgument?.slice('--enterprise-cloud-origin='.length)
+  const enterpriseBootstrap = enterpriseOrigin === undefined ? undefined : await waitForEnterpriseBootstrap(enterpriseOrigin)
   const runtimeDir = process.argv[2] as string
   const projectDir = process.argv[3] as string
   installOfficeEngineResolution(runtimeDir)
@@ -53,11 +69,49 @@ async function main(): Promise<void> {
     updateTasks?: ReturnType<typeof installDesktopUpdateTaskControl>
     quitInspection?: ReturnType<typeof installDesktopQuitInspection>
   } = {}
+  let enterpriseService: EnterpriseBootstrapService | undefined
+  let disposeEnterprise: (() => void) | undefined
+  const enterpriseRefreshes = new Map<number, {
+    readonly resolve: (value: EnterpriseHostBootstrap) => void
+    readonly reject: (error: Error) => void
+    readonly timer: ReturnType<typeof setTimeout>
+  }>()
+  let nextEnterpriseRefreshId = 1
   const send = (message: object): Promise<void> => new Promise((resolve, reject) => {
     if (!process.connected || process.send === undefined) { resolve(); return }
     process.send(message, (error) => { if (error === null) resolve(); else reject(error) })
   })
+  const requestEnterpriseRefresh: EnterpriseBootstrapRefresh = () => {
+    if (!process.connected || process.send === undefined) {
+      return Promise.reject(new Error('Enterprise Desktop refresh channel is unavailable'))
+    }
+    const requestId = nextEnterpriseRefreshId++
+    return new Promise<EnterpriseHostBootstrap>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        enterpriseRefreshes.delete(requestId)
+        reject(new Error('Enterprise Desktop refresh timed out'))
+      }, ENTERPRISE_REFRESH_TIMEOUT_MS)
+      timer.unref()
+      enterpriseRefreshes.set(requestId, { resolve, reject, timer })
+      process.send?.({ type: 'enterprise-refresh', requestId }, (error) => {
+        if (error === null) return
+        const pending = enterpriseRefreshes.get(requestId)
+        if (pending === undefined) return
+        clearTimeout(pending.timer)
+        enterpriseRefreshes.delete(requestId)
+        pending.reject(error)
+      })
+    })
+  }
   const stop = (): Promise<void> => stopping ??= (async () => {
+    disposeEnterprise?.()
+    disposeEnterprise = undefined
+    for (const pending of enterpriseRefreshes.values()) {
+      clearTimeout(pending.timer)
+      pending.reject(new Error('Enterprise Host is stopping'))
+    }
+    enterpriseRefreshes.clear()
+    enterpriseService?.clear()
     for (const abort of dragReads.values()) abort.abort()
     await Promise.allSettled(dragTasks)
     // Startup failure is reported by main; shutdown only owns a tree that booted.
@@ -72,6 +126,34 @@ async function main(): Promise<void> {
   process.on('message', (message: unknown) => {
     if (typeof message !== 'object' || message === null || !('type' in message)) return
     if (message.type === 'shutdown') { void stop(); return }
+    if (message.type === 'enterprise-bootstrap' && enterpriseService !== undefined && 'value' in message) {
+      try {
+        enterpriseService.replace(parseEnterpriseHostBootstrap(message.value, enterpriseOrigin ?? ''))
+      } catch (error) {
+        console.error(error)
+        process.send?.({ type: 'fatal', message: 'Enterprise Desktop bootstrap refresh failed', diagnostic: formatFatalDiagnostic(error) })
+      }
+      return
+    }
+    if (message.type === 'enterprise-refresh' && 'requestId' in message
+      && typeof message.requestId === 'number' && Number.isSafeInteger(message.requestId)) {
+      const requestId = message.requestId
+      const pending = enterpriseRefreshes.get(requestId)
+      if (pending === undefined) return
+      clearTimeout(pending.timer)
+      enterpriseRefreshes.delete(requestId)
+      if (!('value' in message)) {
+        pending.reject(new Error('Enterprise Desktop access refresh failed'))
+        return
+      }
+      try { pending.resolve(parseEnterpriseHostBootstrap(message.value, enterpriseOrigin ?? '')) }
+      catch (error) { pending.reject(error instanceof Error ? error : new Error(String(error))) }
+      return
+    }
+    if (message.type === 'enterprise-session-cleared') {
+      enterpriseService?.clear()
+      return
+    }
     if (message.type === 'file-drag-cancel') {
       if ('requestId' in message && typeof message.requestId === 'number') dragReads.get(message.requestId)?.abort()
       return
@@ -128,6 +210,11 @@ async function main(): Promise<void> {
   })
   process.once('disconnect', () => { void stop() })
   const { ctx } = await application
+  if (enterpriseBootstrap !== undefined) {
+    enterpriseService = installEnterpriseBootstrap(ctx, enterpriseBootstrap, requestEnterpriseRefresh)
+    await ctx.loader.create({ name: enterpriseDesktopEntry() })
+    disposeEnterprise = await installEnterpriseDesktopRuntime(ctx, enterpriseService)
+  }
   installOperationDiagnostics(ctx, record => send({ type: 'plugin-operation', record }), 32, runId)
   control.updateTasks = installDesktopUpdateTaskControl(ctx)
   control.quitInspection = installDesktopQuitInspection(ctx)

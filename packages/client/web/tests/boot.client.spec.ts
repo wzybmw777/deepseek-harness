@@ -64,8 +64,8 @@ describe('bootstrap failure rendering', () => {
     const failure = vi.fn()
     await entry.run(failure)
     expect(failure).toHaveBeenCalledWith(new Error('web boot: window.__ModuleLoader__ bootstrap facade is missing'))
-    expect(container.textContent).toContain('Loading plugins')
-    expect(container.textContent).not.toContain('Failed to load plugins')
+    expect(container.textContent).toContain('正在进入工作台…')
+    expect(container.textContent).not.toContain('工作台加载失败')
     expect(container.querySelector('[data-dsh-boot-spinner]')).not.toBeNull()
     await entry.dispose()
   })
@@ -92,10 +92,10 @@ describe('bootstrap failure rendering', () => {
         expect(report).toHaveBeenCalledOnce()
         expect(String(report.mock.calls[0]![0])).toContain('broken')
         expect(container.querySelector('[data-dsh-boot-spinner]')).not.toBeNull()
-        expect(container.textContent).not.toContain('Failed to load plugins')
+        expect(container.textContent).not.toContain('工作台加载失败')
       } else {
         expect(report).not.toHaveBeenCalled()
-        expect(container.textContent).toContain('Failed to load plugins')
+        expect(container.textContent).toContain('工作台加载失败')
         expect(container.textContent).toContain('broken')
       }
     } finally {
