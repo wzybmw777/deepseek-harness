@@ -102,6 +102,57 @@ body {
   -webkit-user-drag: none;
 }
 
+.enterprise-welcome {
+  grid-template-rows: 40px minmax(0, 1fr) 0;
+  padding-bottom: 24px;
+}
+
+.enterprise-brand {
+  grid-row: 1;
+  justify-self: start;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family-brand);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.enterprise-panel {
+  grid-row: 2;
+  width: min(420px, 100%);
+  padding: 32px;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-border-l4) 82%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 82%, transparent);
+  box-shadow: 0 24px 80px color-mix(in srgb, #000 18%, transparent);
+  backdrop-filter: blur(24px);
+}
+
+.enterprise-heading { text-align: center; }
+.enterprise-heading h1 { margin: 0; font-family: var(--dsw-font-family-brand); font-size: 32px; font-weight: 600; }
+.enterprise-heading p { margin: 8px 0 0; color: var(--dsw-alias-label-secondary); font-size: 14px; }
+.enterprise-heading .enterprise-eyebrow { margin: 0 0 6px; color: var(--dsw-alias-label-caption); font-family: var(--dsw-font-family); font-size: 10px; font-weight: 600; letter-spacing: 0.18em; }
+
+.enterprise-form { display: grid; gap: 16px; margin-top: 28px; }
+.enterprise-form label { display: grid; gap: 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.enterprise-form input {
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--dsw-alias-border-l4);
+  border-radius: 10px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  user-select: text;
+}
+.enterprise-form input:focus { border-color: var(--dsw-alias-brand-primary); }
+.enterprise-form .primary { width: 100%; height: 44px; margin-top: 4px; border-radius: 10px; }
+.enterprise-error { margin: -4px 0 0; color: var(--dsw-alias-label-primary); font-size: 12px; line-height: 18px; }
+.enterprise-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; color: var(--dsw-alias-label-caption); font-size: 10px; }
+.enterprise-footer code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .tagline {
   margin: 0;
   color: var(--dsw-alias-label-secondary);

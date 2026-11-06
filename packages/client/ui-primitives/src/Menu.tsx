@@ -467,6 +467,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
     if ('type' in entry) return renderMenuDecoration(entry)
     const hasSub = entry.submenu !== undefined && entry.submenu.length > 0
     return <MenuRow key={entry.id} icon={entry.icon} reserveIcon={columns.has(entry)}
+      data-menu-id={entry.id}
       disabled={entry.disabled} danger={entry.danger} shortcut={entry.shortcut}
       selected={entry.id === selectedId || selectedIds?.includes(entry.id) === true} selection={selection}
       aria-haspopup={hasSub ? 'menu' : undefined}
@@ -522,7 +523,7 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
         {children}
       </div>
       {footer !== undefined && footer.length > 0 && (
-        <div className={css.footer} role="presentation">
+        <div className={css.footer} role="presentation" data-menu-footer="">
           {footer.map(entry => renderEntry(entry, footerColumns))}
         </div>
       )}

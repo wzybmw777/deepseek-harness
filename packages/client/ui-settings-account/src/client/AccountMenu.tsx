@@ -1,7 +1,8 @@
 /** Sidebar account launcher and locally authoritative sign-out action. */
 import { useEffect, useRef, useState } from 'react'
 import {
-  Toast, Menu, IconEllipsisOutlineMedium, IconPaperPlaneOutlineMedium, IconSettingsOutlineMedium, IconUserOutlineMedium,
+  Toast, Menu, IconChevronUpOutlineRegular, IconEllipsisOutlineMedium, IconPaperPlaneOutlineMedium,
+  IconSettingsOutlineMedium, IconUserOutlineMedium,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AccountSectionInjected } from './AccountSection.tsx'
@@ -14,6 +15,11 @@ import css from './AccountMenu.module.css'
 
 /** Account launcher composed by the settings shell. */
 export type AccountMenuProps = PropsRuntime<'settings.launcher'> & PropsLocale<'settings.account'> & InjectFace<AccountSectionInjected>
+
+/** Whether the enterprise shell owns browser authentication for this page. */
+function enterpriseAuthentication(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.hasAttribute('data-dsh-enterprise')
+}
 
 /** The signed-in label stays empty while the profile loads.
  * @param props - sidebar geometry, settings navigation and account operations.
@@ -34,7 +40,11 @@ export function AccountMenu({
   }, [refreshAccount, settingsOpen])
   const account = useAccount(state => state)
   const colorScheme = useTheme(snapshot => snapshot.active.colorScheme)
-  const signedIn = account.view?.status === 'credential-stored'
+  const enterprise = enterpriseAuthentication()
+  // The enterprise session is the only browser sign-in in the tenant shell.
+  // DeepSeek account controls stay available on the standalone Harness page.
+  const modelAccountVisible = !enterprise
+  const signedIn = modelAccountVisible && account.view?.status === 'credential-stored'
   const [signInNotice, setSignInNotice] = useState(0)
   useEffect(() => subscribeModelSignInRequired?.(() => { setSignInNotice(value => value + 1) }), [subscribeModelSignInRequired])
   const [expiryNotice, setExpiryNotice] = useState(false)
@@ -55,7 +65,7 @@ export function AccountMenu({
   // The plugin's start publishes `loginFailed` before it rejects, so the dialog owns the report.
   const beginSignIn = (): void => { setOpen(false); void start().catch(() => undefined) }
   return <div ref={anchor} className={css.root} data-inset={signedIn && wide}>
-    {signInNotice > 0 && <Toast key={signInNotice} text={t('modelSignInRequired')} onDone={() => { setSignInNotice(0) }} />}
+    {modelAccountVisible && signInNotice > 0 && <Toast key={signInNotice} text={t('modelSignInRequired')} onDone={() => { setSignInNotice(0) }} />}
     {expiryNotice && <Toast text={t('sessionExpired')} onDone={() => { setExpiryNotice(false) }} />}
     {signedIn && !account.desktopOnboardingVisible && !account.onboarding && account.notices && <AccountNoticeStack
       notices={account.notices}
@@ -68,16 +78,17 @@ export function AccountMenu({
           ? <span className={css.avatar} data-avatar-status={account.avatar?.status}>
             <AccountAvatar avatar={account.avatar} avatarFailed={avatarFailed} />
           </span>
-          : <IconEllipsisOutlineMedium size={14} />}
+          : <span className={css.guestBadge}><IconEllipsisOutlineMedium size={14} /></span>}
         {wide && <span className={css.label}>{signedIn ? label : t('more')}</span>}
+        {wide && !signedIn && <IconChevronUpOutlineRegular className={css.disclosure} size={13} />}
       </button>}
       items={[
         { id: 'settings', label: t('settings'), icon: <IconSettingsOutlineMedium size={16} />,
           ...(settingsShortcut === undefined ? {} : { shortcut: settingsShortcut }) },
         { id: 'contact', label: t('contactUs'), icon: <IconPaperPlaneOutlineMedium size={16} /> },
-        ...(signedIn ? [{ id: 'signout', label: t('signOut'), icon: <LogoutIcon />, disabled: busy }]
-          : [{ id: 'signin', label: t('signIn'), icon: <IconUserOutlineMedium size={16} /> }]),
+        ...(signedIn ? [{ id: 'signout', label: t('signOut'), icon: <LogoutIcon />, disabled: busy }] : []),
       ]}
+      {...(!modelAccountVisible || signedIn ? {} : { footer: [{ id: 'signin', label: t('signIn'), icon: <IconUserOutlineMedium size={16} /> }] })}
       onClose={() => { setOpen(false) }}
       onSelect={(id) => {
         if (id === 'settings') { setOpen(false); trigger.current?.focus(); openSettings() }
@@ -85,7 +96,7 @@ export function AccountMenu({
         else if (id === 'signin') beginSignIn()
         else void requestSignOut()
       }} />
-    {account.loginVisible && !account.onboarding && <SignInDialog account={account} colorScheme={colorScheme}
+    {modelAccountVisible && account.loginVisible && !account.onboarding && <SignInDialog account={account} colorScheme={colorScheme}
       start={start} cancel={cancel} t={t}
       close={() => { showLogin(false) }} useApiKey={() => { showLogin(false); openOnboarding('deepseek-official') }} />}
     {signedIn && signOutImpact !== undefined && <SignOutDialog running={signOutImpact} signOut={signOut}

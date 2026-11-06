@@ -10,20 +10,25 @@
 .avatar { display: flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; border-radius: 50%;
   corner-shape: round; background: var(--dsw-alias-bg-skeleton); color: var(--dsw-alias-label-tertiary); }
 .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Signed-out launcher: a 32px More row carrying the 14px ellipsis. */
-.trigger[data-signed-out='true']:not([data-collapsed='true']) { height: 32px; padding: 6px calc(var(--dsh-sidebar-row-padding) - var(--dsh-sidebar-paint-inset)); line-height: 20px; }
+.guestBadge { display: flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--dsw-alias-bg-skeleton); color: var(--dsw-alias-label-tertiary); }
+.disclosure { margin-left: auto; color: var(--dsw-alias-label-tertiary); }
+/* Signed-out launcher keeps the standard row height so More reads as navigation,
+   not as a footnote. The trailing chevron names the upward menu direction. */
+.trigger[data-signed-out='true']:not([data-collapsed='true']) { height: 44px; padding: 6px calc(var(--dsh-sidebar-row-padding) - var(--dsh-sidebar-paint-inset)); line-height: 20px; }
+.trigger[data-signed-out='true'][data-collapsed='true'] .guestBadge { width: 20px; height: 20px; }
 
 /* Signed-out menu card and rows; listClassName reaches the portaled card. */
 .signedOutMenu[role='menu'] {
-  min-width: 124px;
+  min-width: 208px;
   max-width: 280px;
-  padding: 4px;
+  padding: 6px;
 }
 
 .signedOutMenu [role='menuitem'] {
-  min-height: 40px;
-  gap: 8px;
-  padding: 8px 10px;
+  min-height: 42px;
+  gap: 9px;
+  padding: 9px 10px;
   border-radius: var(--dsw-radius-md);
   font-size: 14px;
   line-height: 22px;
@@ -36,3 +41,31 @@
 }
 
 .signedOutMenu [role='menuitem'] > span:first-child:not(:last-child) svg { width: 16px; height: 16px; }
+
+/* Sign-in is the standalone shell's single primary action. The footer marker
+   keeps the Menu primitive's keyboard order and pinned-footer treatment intact
+   without restyling ordinary rows when enterprise mode omits the footer. */
+.signedOutMenu > [data-menu-footer] [role='menuitem'] {
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  background: var(--dsw-alias-button-primary-fill);
+  color: var(--dsw-alias-label-primary-foreground);
+  font-weight: 500;
+}
+
+.signedOutMenu > [data-menu-footer] [role='menuitem'] > span:first-child:not(:last-child) {
+  color: var(--dsw-alias-label-primary-foreground);
+}
+
+@media (hover: hover) {
+  .signedOutMenu > [data-menu-footer] [role='menuitem']:hover:not(:disabled) {
+    background: var(--dsw-alias-button-primary-hover);
+  }
+}
+
+.signedOutMenu > [data-menu-footer] [role='menuitem']:focus-visible:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover);
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}

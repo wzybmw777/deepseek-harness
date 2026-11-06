@@ -3,26 +3,26 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-sidebar-browser/README.md
 /:
-  en: aceaa4f1e64f54b1
-  zh: 0f43a543e01f0778
+  en: 29ab8d105c5aa6b4
+  zh: 66ea7a038562815f
 /deepseek-ai-dsh-client-ui-sidebar-browser:
   en: a84cb48a92ad07c9
   zh: 8c87b76cbe4c2f53
 /deepseek-ai-dsh-client-ui-sidebar-browser/summary:
-  en: 6da22559ff372e95
-  zh: 8ad8f2b4ed655878
+  en: db3277cf0ccc4fc1
+  zh: 11a433f0eb6a6f7d
 /deepseek-ai-dsh-client-ui-sidebar-browser/table-of-contents:
   en: d152484eb41ac6b4
   zh: de4a2a92773d135e
 /deepseek-ai-dsh-client-ui-sidebar-browser/use-this-package:
-  en: 8cf8739a3e4c3504
-  zh: a893ba17036fd8f7
+  en: 4164202d22adad0f
+  zh: 8519d30fe7604228
 /deepseek-ai-dsh-client-ui-sidebar-browser/use-this-package/when-to-choose-it:
   en: fb79cb7d59bc01af
   zh: 5f6202d8b0b62d7d
 /deepseek-ai-dsh-client-ui-sidebar-browser/use-this-package/minimal-configuration:
-  en: abf28ea63777e2a8
-  zh: 1b68bdf5729de71e
+  en: 60a0835fe376e86e
+  zh: c9445adafde75189
 /deepseek-ai-dsh-client-ui-sidebar-browser/understand-the-implementation:
   en: 42b15ac6321706aa
   zh: e15901d8462ec7c7
@@ -30,8 +30,8 @@
   en: dfcf047442eaa96e
   zh: a1fc57195f4c2425
 /deepseek-ai-dsh-client-ui-sidebar-browser/understand-the-implementation/iframe-carrier:
-  en: e535f7330bb62a79
-  zh: 485932298fdabaa3
+  en: d6d27084b37b15c4
+  zh: dbe199f6f28a1ae9
 /deepseek-ai-dsh-client-ui-sidebar-browser/understand-the-implementation/controller:
   en: 6ddc24ffe34846cd
   zh: aa81157d18f850cd
@@ -45,8 +45,8 @@
   en: e17a5fd3d5405745
   zh: db957a16dddce770
 /deepseek-ai-dsh-client-ui-sidebar-browser/known-limitations-and-deferred-work:
-  en: 307604babbe74f38
-  zh: 7d7a5aa4b99964d0
+  en: 14e8b60818d88131
+  zh: 87fd2f72802f2946
 /deepseek-ai-dsh-client-ui-sidebar-browser/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: e88aeb617ffb74ea

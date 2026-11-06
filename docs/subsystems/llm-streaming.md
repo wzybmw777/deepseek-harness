@@ -698,6 +698,8 @@ interface GenerateOptions<Purpose extends string = LlmRequestPurpose> {
    * requests leave it unset.
    */
   purpose?: Purpose
+  /** Client-owned identity of this metered request; adapters forward it without synthesizing one. */
+  requestId?: LlmRequestId
 }
 ```
 

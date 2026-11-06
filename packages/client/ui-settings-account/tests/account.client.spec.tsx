@@ -16,7 +16,11 @@ import { en, zh, type AccountKey } from '../src/client/locales.ts'
 import css from '../src/client/AccountSection.module.css'
 import type { AccountAvatarSnapshot } from '../src/client/account-avatar.ts'
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => {
+  cleanup()
+  document.documentElement.removeAttribute('data-dsh-enterprise')
+  vi.unstubAllGlobals()
+})
 
 /** One resolved theme snapshot per scheme; the slot's theme hook serves these in the application. */
 const themeOf = (colorScheme: 'light' | 'dark'): ThemeSnapshot => ({
@@ -200,6 +204,26 @@ it.each([en, zh])('offers settings, contact and sign-in from the signed-out acco
   fireEvent.click(screen.getByRole('menuitem', { name: copy.contactUs }))
   expect(operations.contactUs).toHaveBeenCalledOnce()
 })
+
+it.each(['signed-out', 'credential-stored'] as const)(
+  'defers browser authentication to the enterprise shell while the model account is %s',
+  async (status) => {
+    document.documentElement.setAttribute('data-dsh-enterprise', '')
+    const operations = operationsOf({ status, attempt: null })
+    const { AccountMenu } = await import('../src/client/AccountMenu.tsx')
+    render(<AccountMenu {...({} as GlobalStandardProps)} {...operations} settingsOpen={false}
+      useAccount={selector => selector(operations.hooks.account.getSnapshot())}
+      useTheme={selector => selector(operations.hooks.theme.getSnapshot())} wide
+      openOnboarding={() => {}} openSettings={() => {}} t={key => en[key as AccountKey]} />)
+
+    const trigger = screen.getByRole('button', { name: en.menu })
+    expect(trigger.textContent).toBe(en.more)
+    fireEvent.click(trigger)
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([en.settings, en.contactUs])
+    expect(screen.queryByRole('menuitem', { name: en.signIn })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: en.signOut })).toBeNull()
+  },
+)
 
 it.each([true, false])('keeps the account inset local through sign-in changes with wide=%s', async (wide) => {
   const { AccountMenu } = await import('../src/client/AccountMenu.tsx')

@@ -6,6 +6,8 @@ import type { BrowserTabState } from './BrowserPersistence.ts'
 /** Provider construction inputs; persistence does not enter the live navigation interface. */
 export interface BrowserPageOptions {
   readonly initial: BrowserTabState | undefined
+  /** Initial Web iframe policy; Desktop providers do not expose this control. */
+  readonly sandboxEnabled: boolean
   readonly persist: (state: BrowserTabState) => void
   readonly openRequested: (url: string) => void
 }

@@ -797,6 +797,10 @@ function clientConfig(
     // Plugin code is fetched outside Vite's module graph, so its own bundle
     // must carry the TS/TSX mapping consumed by browser profiling tools.
     sourcemap: true,
+    // Release bundles are parsed before the first workbench frame. Keep
+    // development output readable for local debugging; source maps remain
+    // available for release profiling.
+    minify: (process.env.NODE_ENV ?? 'production') === 'production',
     clean: false,
     deps: {
       neverBundle: isRequested,

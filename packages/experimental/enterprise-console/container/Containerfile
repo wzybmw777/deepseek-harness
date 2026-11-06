@@ -1,0 +1,25 @@
+FROM docker.io/library/ubuntu:22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    bash \
+    bubblewrap \
+    ca-certificates \
+    curl \
+    git \
+    jq \
+    less \
+    libatomic1 \
+    libstdc++6 \
+    procps \
+    python3 \
+    ripgrep \
+    socat \
+  && rm -rf /var/lib/apt/lists/*
+
+ENV PATH=/opt/node24/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV LANG=C.UTF-8
+
+WORKDIR /opt/deepseek-harness

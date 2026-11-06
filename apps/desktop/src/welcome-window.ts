@@ -58,6 +58,15 @@ let disposeActiveHandlers: (() => void) | undefined
  */
 export async function openWelcomeWindow(locale: DesktopLocale, operations: WelcomeOperations): Promise<BrowserWindow> {
   const options = welcomeWindowOptions(process.platform, locale)
+  if (operations.enterprise !== undefined) {
+    options.webPreferences = {
+      ...options.webPreferences,
+      additionalArguments: [
+        ...(options.webPreferences?.additionalArguments ?? []),
+        '--dsh-enterprise-welcome=1',
+      ],
+    }
+  }
   const window = new BrowserWindow(options)
   disposeActiveHandlers?.()
   let active = true
@@ -67,6 +76,7 @@ export async function openWelcomeWindow(locale: DesktopLocale, operations: Welco
     for (const channel of [
       WELCOME_IPC.analyticsEnabled, WELCOME_IPC.analytics, WELCOME_IPC.takeNotice, WELCOME_IPC.saveApiKey,
       WELCOME_IPC.skip, WELCOME_IPC.start, WELCOME_IPC.cancel, WELCOME_IPC.copyLink,
+      WELCOME_IPC.enterpriseState, WELCOME_IPC.enterpriseSignIn, WELCOME_IPC.enterpriseSignOut,
     ]) {
       ipcMain.removeHandler(channel)
     }
@@ -103,6 +113,26 @@ export async function openWelcomeWindow(locale: DesktopLocale, operations: Welco
     await operations.skip()
   })
   ipcMain.handle(WELCOME_IPC.start, async (event) => { assertSender(event); return operations.startSignIn() })
+  ipcMain.handle(WELCOME_IPC.enterpriseState, async (event) => {
+    assertSender(event)
+    if (operations.enterprise === undefined) throw new Error('desktop welcome: enterprise mode is unavailable')
+    return operations.enterprise.state()
+  })
+  ipcMain.handle(WELCOME_IPC.enterpriseSignIn, async (event, input: unknown) => {
+    assertSender(event)
+    if (operations.enterprise === undefined) throw new Error('desktop welcome: enterprise mode is unavailable')
+    if (typeof input !== 'object' || input === null || Array.isArray(input)
+      || !('email' in input) || typeof input.email !== 'string' || input.email.length > 320
+      || !('password' in input) || typeof input.password !== 'string' || input.password.length > 256) {
+      throw new Error('desktop welcome: invalid enterprise sign-in input')
+    }
+    return operations.enterprise.signIn({ email: input.email, password: input.password })
+  })
+  ipcMain.handle(WELCOME_IPC.enterpriseSignOut, async (event) => {
+    assertSender(event)
+    if (operations.enterprise === undefined) throw new Error('desktop welcome: enterprise mode is unavailable')
+    await operations.enterprise.signOut()
+  })
   ipcMain.handle(WELCOME_IPC.cancel, async (event, id: unknown) => {
     assertSender(event)
     if (typeof id !== 'string') throw new Error('desktop welcome: invalid attempt')
@@ -123,7 +153,6 @@ export async function openWelcomeWindow(locale: DesktopLocale, operations: Welco
     if (!window.isDestroyed()) window.destroy()
     throw error
   }
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Another window can replace ownership during loadFile.
   if (active && !window.isDestroyed()) {
     window.show()
     void operations.analytics?.('auth_page_view', {})

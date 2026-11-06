@@ -671,7 +671,7 @@ describe('workspace browser rows', () => {
     fireEvent.contextMenu(screen.getByRole('treeitem'), { clientX: 36, clientY: 48 })
     expect(openMenu).toHaveBeenLastCalledWith(target, { x: 36, y: 48 })
     expect(renderFactorySlot).toHaveBeenLastCalledWith('contextMenu.button', {
-      target, label: '工作区“Project”的操作', className: rowCss.iconButton,
+      target, label: '项目“Project”的操作', className: rowCss.iconButton,
     })
     expect(onToggle).not.toHaveBeenCalled()
     view.rerender(<ProjectRowItem group={group} onToggle={onToggle} onCreate={vi.fn()} t={t}
@@ -695,10 +695,10 @@ describe('workspace browser rows', () => {
     // Mutations stay gated while the menu remains available for file-manager and plugin actions.
     expect(screen.queryByRole('button', { name: '在“Project”中新建会话' })).toBeNull()
     expect(screen.getByRole('treeitem').getAttribute('draggable')).toBe('false')
-    expect(screen.getByRole('button', { name: '工作区“Project”的操作' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '项目“Project”的操作' })).toBeTruthy()
     allowed.clear()
     view.rerender(<ProjectRowItem {...props} useWorkspaceAccess={useWorkspaceAccess} />)
-    expect(screen.getByRole('button', { name: '工作区“Project”的操作' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '项目“Project”的操作' })).toBeTruthy()
 
     // Every answer allowed restores the button, the full menu, and the drag handle.
     for (const endpoint of ['session/create', 'workspace/rename', 'workspace/delete', 'workspace/insertBefore']) {
@@ -895,7 +895,7 @@ describe('workspace browser rows', () => {
       sessionCount: 0, expanded: false, containsCurrent: false, sessions: [],
     }
     render(<ProjectRowItem group={group} onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
-    expect(screen.queryByRole('button', { name: /工作区/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /项目/ })).toBeNull()
   })
 
   it('blank New Session rows carry no menu, no time label, and no hover-card time', () => {

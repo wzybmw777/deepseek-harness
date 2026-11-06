@@ -44,7 +44,7 @@ export function SubmenuPanel({ entry, submenu, compact, dense, contextual, backL
     </>}
     <div className={css.viewport} role="presentation">
       {entry.submenu.map(sub => 'type' in sub ? renderMenuDecoration(sub)
-        : <MenuRow key={sub.id} icon={sub.icon} reserveIcon={columns.has(sub)} disabled={sub.disabled}
+        : <MenuRow key={sub.id} data-menu-id={sub.id} icon={sub.icon} reserveIcon={columns.has(sub)} disabled={sub.disabled}
           danger={sub.danger} shortcut={sub.shortcut} onClick={() => { onSelect?.(sub.id) }}>{sub.label}</MenuRow>)}
     </div>
   </MenuSurface>, document.body)

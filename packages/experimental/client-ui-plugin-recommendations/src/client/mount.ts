@@ -15,8 +15,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap { pluginRecommendations: RecommendationKey }
 }
 
-/** Services the body needs; the shared card plugin provides `actionCards`. */
-export const inject = ['locale', 'remote', 'actionCards', 'pluginNavigation']
+/** Services the body needs; the shared card plugin provides `actionCards`, while Plugins navigation is optional. */
+export const inject = ['locale', 'remote', 'actionCards']
 
 /** Mount the catalog-text Remote, then register the body for the same plugin lifetime.
  * @param ctx - Client plugin context.
@@ -31,6 +31,13 @@ export async function mountRecommendations(ctx: Context, contribution: TypertRem
 }
 
 function registerBody(ctx: Context): void {
+  const navigation = createSnapshotStore(false)
+  ctx.inject(['pluginNavigation'], (scope: Context) => {
+    scope.effect(() => {
+      navigation.set(true)
+      return () => { navigation.set(false) }
+    }, 'plugin-recommendations: plugin navigation presence')
+  })
   const services: PluginCardServices = {
     // Catalog text by plugin name for this plugin lifetime: a revisited card renders it before its own lookup returns.
     catalog: createSnapshotStore<Readonly<Record<string, CatalogDetails>>>({}),
@@ -38,7 +45,8 @@ function registerBody(ctx: Context): void {
       const result = await ctx.remote.pluginRecommendations.describe(sessionId, callId)
       return result.ok ? result.value : undefined
     },
-    openDetails: (packageName) => { ctx.pluginNavigation.openBundle(packageName) },
+    navigation,
+    openDetails: (packageName) => { ctx.get('pluginNavigation')?.openBundle(packageName) },
     resolveText: text => ctx.locale.resolveText(text),
   }
   ctx.effect(() => ctx.locale.register('pluginRecommendations', { en, zh, ja, es, fr, de, ru, pt }), 'plugin-recommendations: locale')

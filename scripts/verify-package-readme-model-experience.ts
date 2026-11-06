@@ -49,6 +49,9 @@ const NO_MODEL_EXPERIENCE_SECTION: Readonly<Record<string, string>> = {
  * blocks. A package moves on or off this list with its context behavior.
  */
 const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
+  'packages/experimental/client-ui-enterprise-resources': { kind: 'indirect', reason: 'The pages edit team files and skills consumed by the existing skill provider; the client plugin adds no prompt, tool, or Session event.' },
+  'packages/experimental/enterprise-console': { kind: 'indirect', reason: 'Filesystem skills and the generated team-knowledge catalog are rendered by the existing skill provider and tool; the Host plugin adds no prompt, tool, or Session event.' },
+  'packages/experimental/enterprise-desktop': { kind: 'indirect', reason: 'The Host adds only the enterprise model route and cloud transport; model-visible content is assembled by the existing pi-ai adapter and agent loop.' },
   'packages/client/ui-context-menu': { kind: 'none', reason: 'Client menu presentation and contributed callbacks add no model input.' },
   'packages/client/ui-file-actions': { kind: 'none', reason: 'Explicit user file saves and clipboard operations add no model input.' },
   'packages/client/ui-entry-customization': { kind: 'none', reason: 'Controls browser launchers and prepares a reviewable Creator draft without submitting model input.' },

@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-alpha.2/enterprise-console-sqlite/guide.md
+/:
+  en: 90626354d8e1d506
+  zh: e915513a9e61ee29
+/enterprise-console-data-moves-to-enterprise-sqlite:
+  en: 802f14e160b2dbab
+  zh: e689fc6ffa67b2ea
+/enterprise-console-data-moves-to-enterprise-sqlite/change:
+  en: d902cb04ebb970cf
+  zh: ed15948e51111181
+/enterprise-console-data-moves-to-enterprise-sqlite/migration:
+  en: b87d10eb0ff48e66
+  zh: 11231f2c2bf1ea07

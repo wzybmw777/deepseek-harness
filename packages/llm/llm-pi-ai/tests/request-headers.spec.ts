@@ -2,7 +2,7 @@
 
 import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import LlmRuntime, { userAgent } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { LlmRequestId, userAgent } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import * as PiAi from '../src/index.ts'
 import { assemble } from './assemble.ts'
@@ -102,6 +102,47 @@ it('uses the prepared endpoint and isolates overlapping requests', async () => {
   ])
   expect(first.headers[0]?.['x-request-session']).toBe('first')
   expect(second.headers[0]?.['x-request-session']).toBe('second')
+})
+
+it('exposes the exact request identity to header contributors', async () => {
+  const server = await mockServer([{ events: textEvents }])
+  const ctx = await harness(server.url)
+  const requestId = LlmRequestId('req-a')
+  const seen: PiAi.PiAiRequestHeaderContext['requestId'][] = []
+  ctx.on('llm-pi-ai/request-headers', (request, headers, next) => {
+    seen.push(request.requestId)
+    headers.set('x-dsh-request-id', request.requestId ?? 'missing')
+    return next()
+  })
+
+  await assemble(ctx, { model: 'deepseek-flash', messages: [], requestId })
+
+  expect(seen).toEqual([requestId])
+  expect(server.headers[0]?.['x-dsh-request-id']).toBe('req-a')
+})
+
+it('keeps header contexts isolated when request identities overlap', async () => {
+  const first = await mockServer([{ events: textEvents, holdOpen: true }])
+  const second = await mockServer([{ events: textEvents }])
+  const ctx = await harness(first.url, second.url)
+  const seen: PiAi.PiAiRequestHeaderContext[] = []
+  ctx.on('llm-pi-ai/request-headers', (request, headers, next) => {
+    seen.push(request)
+    headers.set('x-dsh-request-id', request.requestId ?? 'missing')
+    return next()
+  })
+  const firstId = LlmRequestId('req-first')
+  const secondId = LlmRequestId('req-second')
+  const prepared = await ctx.llm.prepareCall({ provider: 'deepseek', model: 'deepseek-flash' })
+  const iterator = prepared.stream({ ...prepared.config, messages: [], requestId: firstId })[Symbol.asyncIterator]()
+  onTestFinished(async () => { await iterator.return?.() })
+  await iterator.next()
+  await assemble(ctx, { provider: 'gateway', model: 'm', messages: [], requestId: secondId })
+  while (!(await iterator.next()).done) { /* Drain the first response after the second call settles. */ }
+
+  expect(seen.map(({ requestId }) => requestId)).toEqual([firstId, secondId])
+  expect(first.headers[0]).toMatchObject({ 'x-dsh-request-id': 'req-first' })
+  expect(second.headers[0]).toMatchObject({ 'x-dsh-request-id': 'req-second' })
 })
 
 it.each([

@@ -69,6 +69,7 @@ kind: "package-group"
 | [`liveshare`](liveshare/README.zh.md) | 可选 LiveShare host bundle：通过 Relay 以 `view` 或 `write` 档分享会话，派生与附件上传为独立开关 | 注入 `connection`；通过宿主 Web 资源提供查看页 |
 | [`liveshare-protocol`](liveshare-protocol/README.zh.md) | owner bundle 与 Relay 共用的线路帧与身份契约 | 库与协议，不使用 ctx key |
 | [`voice-input-bundle`](voice-input-bundle/README.zh.md) | 默认禁用的可选语音输入组合 | — |
+| [`client-ui-enterprise-resources`](client-ui-enterprise-resources/README.zh.md) | 企业 Harness 工作台内的团队文件、知识库与文件系统技能 | — |
 | [`client-ui-stats`](client-ui-stats/README.zh.md) | Web 端按轮次与步骤展示上下文、耗时、缓存与工具成本 | — |
 | [`auto-review`](auto-review/README.zh.md) | 显式 Web 层，在每个原生或 PTC inner 工具调用前使用同一模型审查 | — |
 | [`subagent-oar`](subagent-oar/README.zh.md) | 通过 OAR 执行外部编程智能体的独立任务 | `ctx.subagents` |

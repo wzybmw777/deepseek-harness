@@ -25,3 +25,50 @@ export interface DesktopBrowserBridge {
   /** @param lease - originating guest. @param listener - approved URL consumer. @returns unsubscribe callback. */
   onOpenRequested(lease: DesktopBrowserLeaseId, listener: (url: string) => void): () => void
 }
+
+/** Browser-visible state reported by a server-side Chromium page. */
+export interface RemoteBrowserViewState {
+  /** Current HTTP(S) address, or the requested address before Chromium commits it. */
+  readonly url: string
+  readonly title: string
+  readonly loading: boolean
+  readonly canGoBack: boolean
+  readonly canGoForward: boolean
+}
+
+/** Result of creating one server-side browser session. */
+export interface RemoteBrowserOpenResult {
+  readonly sessionId: string
+  readonly state: RemoteBrowserViewState
+}
+
+/** Pointer buttons accepted by the remote browser surface. */
+export type RemoteBrowserButton = 'left' | 'middle' | 'right'
+
+/** One control operation sent to a server-side Chromium page. */
+export type RemoteBrowserControl =
+  | { readonly action: 'navigate'; readonly url: string }
+  | { readonly action: 'back' }
+  | { readonly action: 'forward' }
+  | { readonly action: 'reload' }
+  | { readonly action: 'resize'; readonly width: number; readonly height: number }
+  | {
+    readonly action: 'pointer'
+    readonly event: 'click' | 'move' | 'down' | 'up'
+    readonly x: number
+    readonly y: number
+    readonly button?: RemoteBrowserButton
+  }
+  | { readonly action: 'wheel'; readonly deltaX: number; readonly deltaY: number }
+  | {
+    readonly action: 'key'
+    readonly key: string
+    readonly modifiers?: readonly ('Alt' | 'Control' | 'Meta' | 'Shift')[]
+  }
+  | { readonly action: 'insertText'; readonly text: string }
+
+/** Event stream emitted by a server-side Chromium page. */
+export type RemoteBrowserEvent =
+  | { readonly type: 'state'; readonly state: RemoteBrowserViewState }
+  | { readonly type: 'frame'; readonly data: string; readonly width: number; readonly height: number }
+  | { readonly type: 'failure'; readonly code: string; readonly message: string }

@@ -93,7 +93,7 @@ describe('bootstrap failure rendering', () => {
         expect(report).toHaveBeenCalledOnce()
         expect(String(report.mock.calls[0]![0])).toContain(`${REQUIRED_ID} (required): failed: Error: plugin activation failed`)
         expect(container.querySelector('[data-dsh-boot-spinner]')).not.toBeNull()
-        expect(container.textContent).not.toContain('Failed to load plugins')
+        expect(container.textContent).not.toContain('工作台加载失败')
       } else {
         expect(report).not.toHaveBeenCalled()
         expect(container.textContent).toContain('Failed to load plugins')

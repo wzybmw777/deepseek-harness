@@ -32,6 +32,9 @@
       "path": "../../packages/credentials/deepseek-account"
     },
     {
+      "path": "../../packages/experimental/enterprise-desktop/tsconfig.host.json"
+    },
+    {
       "path": "../../packages/boot/plugin-manager"
     },
     {

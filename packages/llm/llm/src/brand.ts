@@ -63,6 +63,19 @@ export function LlmAttemptId(id: string): LlmAttemptId {
   return brandString<LlmAttemptId>(id)
 }
 
+/** Client-owned identity deduplicating one metered model request across retries. */
+export type LlmRequestId = Branded<'LlmRequestId'>
+
+/**
+ * Brand a client-owned model request identity.
+ * @param id - non-empty request identity generated before dispatch.
+ * @returns the same string with the request-id brand.
+ */
+export function LlmRequestId(id: string): LlmRequestId {
+  if (id === '') throw new Error('LLM request id must not be empty')
+  return brandString<LlmRequestId>(id)
+}
+
 /** Adapter-owned identifier for one model's selectable reasoning effort. */
 export type ReasoningEffortId = Branded<'ReasoningEffortId'>
 

@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-31-enterprise-rootless-tenant-isolation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-31-enterprise-rootless-tenant-isolation.md
+/agent-note-enterprise-tenants-require-authentication-and-rootless-containers:
+  en: 84d601d8e694d6db
+  zh: bff053bf4c722189
+/agent-note-enterprise-tenants-require-authentication-and-rootless-containers/problem:
+  en: 7ef1a9b915bda1ae
+  zh: 8a43be06fee24d20
+/agent-note-enterprise-tenants-require-authentication-and-rootless-containers/decision:
+  en: 3dd30ba6aef66639
+  zh: a97fffff745f5fa6
+/agent-note-enterprise-tenants-require-authentication-and-rootless-containers/alternatives-considered:
+  en: 9f4f2d197a47859f
+  zh: c5cce103adef9f40
+/agent-note-enterprise-tenants-require-authentication-and-rootless-containers/consequences:
+  en: 6c1353101073b785
+  zh: 4fe8bb17d66a7b67

@@ -61,6 +61,7 @@
 
 - [cordis-api/inherited.md](../cordis-api/inherited.md)：该生成文档没有经评审的中文对侧，因此网站的两个 locale 都投影英文源文件。
 - `docs/AGENTS.md`、`.agents/notes/**/AGENTS.md` 以及指向它们的 `CLAUDE.md` 指令符号链接：agent 指令，与根 `AGENTS.md` 一样只以英文维护。
+- `docs/superpowers/plans/`：由 agent 执行的任务级实施清单；已翻译的设计规格与包文档是已发布设计和当前行为的真源。
 - `docs/i18n/terminology.md` 与 [style-samples.md](style-samples.md)：二者本身即为中英对照文档。
 - [translation-prompt.md](translation-prompt.md)：自动翻译流水线的提示词模板；正文逐字进入模型请求，配对翻译会改变流水线行为。
 - [review-ownership/README.md](../../.github/review-ownership/README.md)：仓库内部审批策略，只以英文维护。

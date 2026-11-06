@@ -7,7 +7,7 @@
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { LocalizedText } from '@deepseek-ai/dsh-package-manifest'
-import type { MessageId, ToolCallId, ProviderRequestId, ReasoningEffortId } from './brand.ts'
+import type { LlmRequestId, MessageId, ToolCallId, ProviderRequestId, ReasoningEffortId } from './brand.ts'
 import type { Message, UserMessage } from './message.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -603,4 +603,6 @@ export interface GenerateOptions<Purpose extends string = LlmRequestPurpose> {
    * requests leave it unset.
    */
   purpose?: Purpose
+  /** Client-owned identity of this metered request; adapters forward it without synthesizing one. */
+  requestId?: LlmRequestId
 }

@@ -1,0 +1,155 @@
+/* Sidebar-foot quota row. Reuses the sidebar action geometry and the shared
+   skeleton fill so light and dark themes follow the surrounding workbench. */
+
+.root {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% + 4px);
+  min-width: 0;
+  min-height: 40px;
+  margin: 0 -2px;
+  padding: 5px 8px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+}
+
+.wide {
+  cursor: default;
+}
+
+.rail {
+  justify-content: center;
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  corner-shape: round;
+}
+
+.icon {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.primary,
+.secondary,
+.exhaustedLabel,
+.unavailableLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.primary {
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.secondary {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.exhausted {
+  color: var(--dsw-alias-state-warning-primary);
+}
+
+.exhausted .icon {
+  color: currentColor;
+}
+
+.exhaustedLabel {
+  flex: 1;
+  font-weight: 500;
+}
+
+.purchase {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 0 2px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.purchase:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
+.unavailable {
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .unavailable:hover,
+  .rail.exhausted:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  .purchase:hover {
+    color: var(--dsw-alias-label-secondary);
+  }
+}
+
+.unavailableLabel {
+  flex: 1;
+}
+
+.skeletonIcon,
+.skeleton {
+  display: block;
+  background: var(--dsw-alias-bg-skeleton);
+  animation: quota-skeleton 2s cubic-bezier(0.36, 0, 0.64, 1) infinite;
+}
+
+.skeletonIcon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.skeleton {
+  width: 108px;
+  max-width: 100%;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.skeletonRail {
+  width: 18px;
+  height: 4px;
+}
+
+@keyframes quota-skeleton {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}

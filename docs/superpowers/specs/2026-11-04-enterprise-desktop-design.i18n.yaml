@@ -1,0 +1,76 @@
+# Bilingual-pair consistency record for 2026-11-04-enterprise-desktop-design.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/superpowers/specs/2026-11-04-enterprise-desktop-design.md
+/:
+  en: ecf0b2ad7491ded9
+  zh: bbc01de2c00cbacc
+/enterprise-desktop-client-design:
+  en: eb547ebcc1955348
+  zh: e5050593906c3c1c
+/enterprise-desktop-client-design/summary:
+  en: aafe2250b65f0217
+  zh: e4c6d24ab039f4f5
+/enterprise-desktop-client-design/intent:
+  en: 6d01f38922922160
+  zh: 040dc825ade11586
+/enterprise-desktop-client-design/goals:
+  en: 9d7ac0b756207090
+  zh: d975f3ac12189803
+/enterprise-desktop-client-design/non-goals:
+  en: 9e44a6a8894ae4fb
+  zh: 28dfa547c3775a8b
+/enterprise-desktop-client-design/constraints:
+  en: 9465909183fd06bd
+  zh: 11bfacf1b8610b82
+/enterprise-desktop-client-design/architecture:
+  en: a7e56472b11bd3c8
+  zh: 6150d900a0920ce9
+/enterprise-desktop-client-design/architecture/cloud-control-plane:
+  en: a4b51acc00e4e968
+  zh: f17930a5e775c3fd
+/enterprise-desktop-client-design/architecture/desktop-execution-plane:
+  en: 47fb1b72b541afce
+  zh: e942d790dcd5d573
+/enterprise-desktop-client-design/architecture/web-fallback:
+  en: e4e3dbf84a0bed23
+  zh: 5787eab201cc2ee8
+/enterprise-desktop-client-design/login-and-session:
+  en: b65725ad16f2db1e
+  zh: 4bb93d37dbe1ccdd
+/enterprise-desktop-client-design/model-gateway:
+  en: 3e8c4cae238b0ae3
+  zh: 6eeb479031569a21
+/enterprise-desktop-client-design/shared-resources:
+  en: 947f87f390ab40e9
+  zh: 2db52b18d3ec3457
+/enterprise-desktop-client-design/sessions-and-workspace:
+  en: 6a8b7fe723b5942a
+  zh: 7baf33f4d9884e76
+/enterprise-desktop-client-design/shared-sessions:
+  en: 49adbc64b3cf9bbc
+  zh: 934ab8bf9ed425a7
+/enterprise-desktop-client-design/browser:
+  en: 79ced14236e2f4c0
+  zh: 9b7656f6b53c5827
+/enterprise-desktop-client-design/plugin-policy:
+  en: 13019f37b1df7432
+  zh: 98a55b3c91fd9fcd
+/enterprise-desktop-client-design/security-and-privacy:
+  en: 2c962d70fd83db67
+  zh: 56ad1e80b841e419
+/enterprise-desktop-client-design/failure-behavior:
+  en: 26ee137c8030f511
+  zh: 8857762dcef4a88e
+/enterprise-desktop-client-design/distribution-and-updates:
+  en: 0e008988b1a347f0
+  zh: e70b2bffa9b259cc
+/enterprise-desktop-client-design/rollout:
+  en: 447b8975f21dcd10
+  zh: 38c7583d1a505032
+/enterprise-desktop-client-design/acceptance-criteria:
+  en: a0d40b868830c985
+  zh: 84da39712b58de18
+/enterprise-desktop-client-design/open-decisions:
+  en: 4f8a8430ddac0e59
+  zh: f107b9fbee9072ff

@@ -31,7 +31,8 @@ function props(decision?: { phase: string; data?: ActionCardFields }, details: R
     proposal, decision: decision === undefined ? undefined : { callId, action: ACTION, ...decision },
     sessionId: SessionId('session-1'), summary: <strong>{proposal.title}</strong>, Folded: FoldedText,
     act: vi.fn<Act>(async () => ({ status: 'settled', decision: { callId, action: ACTION, phase: 'enabled' } })),
-    catalog: store, describe: vi.fn<Describe>(async () => details), openDetails: vi.fn<(name: string) => void>(),
+    catalog: store, describe: vi.fn<Describe>(async () => details), navigation: createSnapshotStore(true),
+    openDetails: vi.fn<(name: string) => void>(),
     resolveText: (text: LocalizedText) => typeof text === 'string' ? text : text.zh ?? text.en,
     t: makeTranslate(zh),
   } satisfies PluginCardProps
@@ -105,6 +106,15 @@ it('names no status for a phase it does not know, and offers no action', async (
   await shown(props({ phase: 'future-phase', data: { application: 42 } }))
   expect(screen.queryByRole('status')).toBeNull()
   expect(screen.queryByRole('button', { name: '启用' })).toBeNull()
+})
+
+it('shows plugin details as static text when Plugins navigation is unavailable', async () => {
+  const value = props()
+  value.navigation = createSnapshotStore(false)
+  await shown(value)
+  expect(screen.queryByRole('button', { name: '查看详情：会话搜索' })).toBeNull()
+  expect(screen.getByText('会话搜索')).toBeTruthy()
+  expect(screen.getByText('检索过去的会话')).toBeTruthy()
 })
 
 it.each([

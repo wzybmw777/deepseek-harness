@@ -3,6 +3,7 @@
 import type { AccountView, SignInAttemptId } from '@deepseek-ai/dsh-deepseek-account/types'
 import type { ProductEventMap } from '@deepseek-ai/dsh-client-product-analytics/types'
 import type { DesktopLocale } from './locale.ts'
+import type { EnterpriseWelcomeApi, EnterpriseWelcomeCopy } from './enterprise-welcome.ts'
 
 /** Private native welcome channels, installed only while its window exists. */
 export const WELCOME_IPC = {
@@ -15,6 +16,9 @@ export const WELCOME_IPC = {
   copyLink: 'dsh-welcome:copy-link',
   state: 'dsh-welcome:state',
   takeNotice: 'dsh-welcome:take-notice',
+  enterpriseState: 'dsh-welcome:enterprise-state',
+  enterpriseSignIn: 'dsh-welcome:enterprise-sign-in',
+  enterpriseSignOut: 'dsh-welcome:enterprise-sign-out',
 } as const
 
 /** Credential writes return a safe outcome without exposing Host diagnostics. */
@@ -51,10 +55,14 @@ export interface WelcomeOperations {
    * @returns completion after the workspace opens.
    */
   skip(): Promise<void>
+  /** Enterprise sign-in operations; absent from a community build. */
+  enterprise?: EnterpriseWelcomeApi
 }
 
 /** The renderer receives localized copy, login operations, and safe account snapshots. */
 export type WelcomeApi = DesktopLocale & WelcomeOperations & {
+  readonly enterpriseMode: boolean
+  readonly enterpriseCopy: EnterpriseWelcomeCopy
   /** @param listener - safe account snapshot recipient. @returns subscription disposer. */
   onAccountState(listener: (state: AccountView) => void): () => void
 }

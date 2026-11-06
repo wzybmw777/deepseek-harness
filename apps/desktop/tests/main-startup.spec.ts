@@ -15,6 +15,8 @@ import { en, zh } from '../src/locale.ts'
 import { DesktopUpdatePreparationError } from '../src/update-error.ts'
 import { writeCrashReport } from '../src/crash-report.ts'
 import { runOperationReportJob } from '../src/operation-report-job.ts'
+import type { EnterpriseAuthSession } from '../src/enterprise-auth.ts'
+import type { EnterpriseCredentialRecord } from '../src/enterprise-types.ts'
 
 type InvokeEvent = { sender?: unknown; senderFrame: { url: string } }
 type InvokeHandler = (event: InvokeEvent, ...args: unknown[]) => unknown
@@ -173,6 +175,7 @@ const harness = await vi.hoisted(async () => {
       readonly packageManager?: { pnpm: string; nodeBin: string },
       readonly onPlatformSession?: ConstructorParameters<typeof DesktopHostProcess>[8],
       readonly onPluginOperation?: ConstructorParameters<typeof DesktopHostProcess>[9],
+      readonly enterpriseBootstrap?: ConstructorParameters<typeof DesktopHostProcess>[10],
     ) { hosts.push(this) }
   }
   const app = Object.assign(new EventEmitter(), {
@@ -204,6 +207,22 @@ const harness = await vi.hoisted(async () => {
   let analyticsEnabled = true
   let analyticsEnabledListener: ((enabled: boolean) => void) | undefined
   const analytics = vi.fn(async (_event: unknown) => {})
+  const watchAccount = (
+    listener: (state: AccountView) => void, _failed: () => void, _expired: () => void,
+    onAnalyticsEnabledChanged?: (enabled: boolean) => void,
+  ): (() => void) => {
+    analyticsEnabledListener = onAnalyticsEnabledChanged
+    accountListener = listener
+    return () => { accountListener = undefined; analyticsEnabledListener = undefined }
+  }
+  const connectWelcome = vi.fn(async (..._args: unknown[]) => ({
+    analyticsEnabled: async () => analyticsEnabled,
+    report: analytics,
+    readLocalePreference: async () => null,
+    read: async (): Promise<unknown> => (await hosts.at(-1)!.fetch()).json() as Promise<unknown>,
+    save: async () => ({ ok: true }),
+    account: { watch: watchAccount, state: async () => ({ status: 'signed-out', attempt: null }) },
+  }))
   const nativeTheme = { themeSource: 'system', shouldUseDarkColors: false }
   const trays: FakeTray[] = []
   class FakeTray extends EventEmitter {
@@ -218,22 +237,17 @@ const harness = await vi.hoisted(async () => {
     failWindow(error: Error) { windowFailure = error },
     windows, views, hosts, handlers, app, FakeWindow, FakeView, FakeHost, powerMonitor, nativeTheme, analytics,
     trays, FakeTray, backgroundNotice, shellDialog,
-    menu, popup, socketHeaders: vi.fn(), connectWelcome: vi.fn(), removeLegacyHostCookies: vi.fn(async () => {}), hostCookies: {},
+    menu, popup, socketHeaders: vi.fn(), removeLegacyHostCookies: vi.fn(async () => {}), hostCookies: {},
     loginShell, readLoginShell, updateCheck, updateDownload, updateInstall,
     platformDispose,
     platformCloseAndWait,
 
     get analyticsEnabled() { return analyticsEnabled },
     set analyticsEnabled(value: boolean) { analyticsEnabled = value; analyticsEnabledListener?.(value) },
-    watchAccount: (
-      listener: (state: AccountView) => void, _failed: () => void, _expired: () => void,
-      onAnalyticsEnabledChanged?: (enabled: boolean) => void,
-    ) => {
-      analyticsEnabledListener = onAnalyticsEnabledChanged
-      accountListener = listener
-      return () => { accountListener = undefined; analyticsEnabledListener = undefined }
-    },
+    watchAccount,
     publishAccount(state: AccountView) { accountListener?.(state) },
+    connectWelcome,
+    analyticsEnabledListener(value: boolean) { analyticsEnabled = value; analyticsEnabledListener?.(value) },
     ipcOn: vi.fn<(channel: string, listener: (event: { sender: unknown; senderFrame: unknown }, ...args: unknown[]) => void) => void>(),
     get updateState() { return updateState },
     set updateState(value: DesktopUpdateState) { updateState = value },
@@ -287,6 +301,7 @@ const harness = await vi.hoisted(async () => {
       navigated = deferred(); dialogShown = deferred(); quitCompleted = deferred()
       policyBlocked = deferred()
       embeddedPolicy = undefined
+      connectWelcome.mockClear()
       fileDrag.install.mockReset()
       fileDrag.dispose.mockReset().mockResolvedValue(undefined)
       platformDisposeDeferred = undefined
@@ -297,6 +312,24 @@ const harness = await vi.hoisted(async () => {
 
 const testAuth = vi.hoisted(() => ({ login: vi.fn<() => Promise<'returned' | 'cancelled' | 'failed'>>(),
   focus: vi.fn(), dispose: vi.fn(async () => {}) }))
+const enterprise = vi.hoisted(() => ({
+  login: vi.fn(),
+  restore: vi.fn<() => Promise<unknown>>(async () => undefined),
+  refresh: vi.fn(),
+  revoke: vi.fn(async () => {}),
+  load: vi.fn<() => Promise<unknown>>(async () => undefined),
+  save: vi.fn(async () => {}),
+  clear: vi.fn(async () => {}),
+  reset() {
+    this.login.mockReset()
+    this.restore.mockReset().mockResolvedValue(undefined)
+    this.refresh.mockReset()
+    this.revoke.mockReset().mockResolvedValue(undefined)
+    this.load.mockReset().mockResolvedValue(undefined)
+    this.save.mockReset().mockResolvedValue(undefined)
+    this.clear.mockReset().mockResolvedValue(undefined)
+  },
+}))
 vi.mock('../src/policy-test-auth.ts', () => ({ DesktopPolicyTestAuth: class {
   readonly login = testAuth.login
   readonly focus = testAuth.focus
@@ -310,6 +343,11 @@ vi.mock('electron', () => ({
   WebContentsView: harness.FakeView,
   dialog: harness.dialog,
   shell: { openExternal: harness.openExternal, showItemInFolder: harness.showItemInFolder },
+  safeStorage: {
+    isEncryptionAvailable: () => true,
+    encryptString: (value: string) => Buffer.from(value),
+    decryptString: (value: Buffer) => value.toString('utf8'),
+  },
   nativeTheme: harness.nativeTheme,
   ipcMain: {
     on: harness.ipcOn,
@@ -328,6 +366,23 @@ vi.mock('electron', () => ({
   powerMonitor: harness.powerMonitor,
   Tray: harness.FakeTray,
   nativeImage: { createFromPath: (path: string) => ({ path }) },
+}))
+vi.mock('../src/enterprise-auth.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/enterprise-auth.ts')>(),
+  EnterpriseAuthClient: class {
+    readonly login = enterprise.login
+    readonly restore = enterprise.restore
+    readonly refresh = enterprise.refresh
+    readonly revoke = enterprise.revoke
+  },
+}))
+vi.mock('../src/enterprise-credentials.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/enterprise-credentials.ts')>(),
+  EnterpriseCredentialStore: class {
+    readonly load = enterprise.load
+    readonly save = enterprise.save
+    readonly clear = enterprise.clear
+  },
 }))
 vi.mock('../src/background-notice.ts', () => ({ DesktopBackgroundNotice: class {
   constructor(options: { markerPath: string }) { harness.backgroundNotice.markerPath = options.markerPath }
@@ -348,7 +403,10 @@ vi.mock('../src/login-shell-environment.ts', async importOriginal => ({
   readDesktopLoginShellEnvironment: harness.loginShell,
 }))
 vi.mock('../src/runtime-tree.ts', () => ({ readDesktopRuntime: () => ({ release: { version: '1.0.0' } }) }))
-vi.mock('../src/paths.ts', () => ({ resolveDesktopPaths: () => ({ profile: 'desktop-test-profile' }) }))
+vi.mock('../src/paths.ts', () => ({
+  resolveDesktopPaths: () => ({ profile: 'desktop-test-profile' }),
+  resolveEnterpriseDesktopPaths: () => ({ profile: 'enterprise-test-profile' }),
+}))
 vi.mock('../src/project-manager.ts', () => ({
   DesktopProjectManager: class {
     readonly applyRelease = harness.applyRelease
@@ -455,6 +513,7 @@ beforeEach(() => {
   harness.dialog.showMessageBox.mockResolvedValue({ response: 1 })
   testAuth.login.mockReset()
   testAuth.login.mockResolvedValue('cancelled')
+  enterprise.reset()
   vi.useFakeTimers()
   harness.reset()
   const userData = mkdtempSync(join(tmpdir(), 'dsh-main-user-data-'))
@@ -497,6 +556,66 @@ afterEach(async () => {
 })
 
 describe('desktop main startup', () => {
+  it('restores an enterprise session into the workspace without consumer onboarding', async () => {
+    harness.app.isPackaged = false
+    vi.stubEnv('DSH_ENTERPRISE_CLOUD_ORIGIN', 'https://cloud.example.com')
+    const accessExpiresAt = new Date(Date.now() + 15 * 60_000).toISOString()
+    const session = {
+      accessToken: 'access-token',
+      accessExpiresAt,
+      bootstrap: {
+        apiVersion: 1,
+        cloudBaseUrl: 'https://cloud.example.com',
+        profileKey: 'a'.repeat(64),
+        accessExpiresAt,
+        user: { id: 'user-owner', email: 'owner@example.com', name: 'Owner', roleId: 'role-owner' },
+        team: { id: 'team-default', name: 'Default', slug: 'default' },
+        minimumClientVersion: '0.2.2-alpha.2',
+        policy: { consumerAnalytics: false, crashReports: 'enterprise-support', supportEmail: 'support@example.com' },
+        endpoints: {
+          bootstrap: '/enterprise/api/desktop/bootstrap',
+          models: '/enterprise/api/desktop/models',
+          resources: '/enterprise/api/desktop/resources',
+          sessions: '/enterprise/api/desktop/sessions',
+          plugins: '/enterprise/api/desktop/plugins',
+          billing: '/enterprise/api/desktop/billing',
+        },
+      },
+    } satisfies EnterpriseAuthSession
+    const credential = {
+      cloudBaseUrl: 'https://cloud.example.com',
+      userId: 'user-owner',
+      email: 'owner@example.com',
+      deviceId: 'device-a',
+      profileKey: 'a'.repeat(64),
+      refreshToken: 'refresh-token',
+    } satisfies EnterpriseCredentialRecord
+    enterprise.restore.mockResolvedValue(session)
+    enterprise.load.mockResolvedValue(credential)
+
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    harness.prepared.resolve()
+    await harness.hostStarted.promise
+    const host = harness.hosts[0]!
+    host.ready.resolve()
+    await vi.waitFor(() => { expect(harness.windows[0]!.show).toHaveBeenCalledOnce() })
+
+    expect(enterprise.restore).toHaveBeenCalledWith('https://cloud.example.com')
+    expect(host.enterpriseBootstrap).toMatchObject({
+      cloudBaseUrl: 'https://cloud.example.com',
+      accessToken: 'access-token',
+      accessExpiresAt,
+      profileKey: 'a'.repeat(64),
+      user: session.bootstrap.user,
+      team: session.bootstrap.team,
+    })
+    expect(host.enterpriseBootstrap).not.toHaveProperty('refreshToken')
+    expect(harness.connectWelcome).not.toHaveBeenCalled()
+    expect(harness.analytics).not.toHaveBeenCalled()
+    expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
+  }, 20_000)
+
   it.each([true, false])('selects the package manager before Host startup (packaged=%s)', async (packaged) => {
     harness.app.isPackaged = packaged
     await readyForUpdate()

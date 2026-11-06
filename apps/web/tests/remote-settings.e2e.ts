@@ -23,7 +23,7 @@ const MODE = webSnapshotMode()
  */
 async function expectOnboardingSettled(page: Page): Promise<Locator> {
   await page.waitForSelector('#root', { timeout: 30_000 })
-  await page.getByRole('textbox', { name: '选择工作区' }).waitFor({ timeout: 30_000 })
+  await page.getByRole('textbox', { name: '新建项目' }).waitFor({ timeout: 30_000 })
   await openSettings(page, 'zh')
   const dialog = page.getByRole('dialog', { name: '设置' })
   await dialog.getByRole('button', { name: '模型', exact: true }).click()
