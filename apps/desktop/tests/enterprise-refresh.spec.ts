@@ -6,7 +6,7 @@ const session = (expiresAt: number): EnterpriseAuthSession => ({
   accessToken: 'access',
   accessExpiresAt: new Date(expiresAt).toISOString(),
   bootstrap: {
-    apiVersion: 1, cloudBaseUrl: 'https://cloud.example.com', profileKey: 'a'.repeat(64),
+    apiVersion: 1, cloudBaseUrl: 'https://cloud.example.com', profileKey: 'a'.repeat(32),
     accessExpiresAt: new Date(expiresAt).toISOString(),
     user: { id: 'user-a', email: 'a@example.com', name: 'Alice', roleId: 'member' },
     team: { id: 'team-a', name: 'Team A', slug: 'team-a' }, minimumClientVersion: '0.1.0',

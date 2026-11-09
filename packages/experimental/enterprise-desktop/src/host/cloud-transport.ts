@@ -122,7 +122,7 @@ function assertGrant(value: EnterpriseAccessBootstrap): EnterpriseAccessBootstra
   const cloudBaseUrl = cloudOrigin(value.cloudBaseUrl)
   if (value.accessToken === '' || value.accessToken.length > 8192) fail('企业访问凭证无效', 'refresh_failed')
   if (!Number.isFinite(Date.parse(value.accessExpiresAt))) fail('企业访问凭证过期时间无效', 'refresh_failed')
-  if (!/^[a-f0-9]{64}$/u.test(value.profileKey)) fail('企业桌面配置标识无效', 'refresh_failed')
+  if (!/^[a-f0-9]{32}$/u.test(value.profileKey)) fail('企业桌面配置标识无效', 'refresh_failed')
   return { ...value, cloudBaseUrl }
 }
 

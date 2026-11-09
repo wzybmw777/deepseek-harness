@@ -1034,8 +1034,10 @@ async function main(): Promise<void> {
       || new URL(event.senderFrame.url).origin !== new URL(applicationUrl).origin) {
       throw new Error('desktop welcome: rejected locale request from an unowned frame')
     }
-    if (welcomeBackend === undefined) throw new Error('desktop welcome: backend unavailable')
-    return { languages: systemLanguages, preference: await welcomeBackend.readLocalePreference() }
+    const preference = welcomeBackend === undefined
+      ? readDesktopLocaleCache(app.getPath('userData')) ?? null
+      : await welcomeBackend.readLocalePreference()
+    return { languages: systemLanguages, preference }
   })
   ipcMain.on(DESKTOP_IPC.localeChanged, (event, next: unknown) => {
     const window = mainWindow
@@ -1089,6 +1091,7 @@ async function main(): Promise<void> {
   })
   ipcMain.handle(DESKTOP_IPC.onboardingApiKey, async (event) => {
     assertProductSender(event)
+    if (enterpriseMode) return false
     return (await readWelcomeState()).hasApiKey
   })
   ipcMain.on(DESKTOP_IPC.onboardingActive, (event, active: unknown) => {

@@ -1,0 +1,9 @@
+Use case: logo-brand
+Asset type: square desktop application icon for Zhiliu (织流), an enterprise AI workspace.
+Primary request: an original, refined and memorable abstract woven-flow emblem, expressing several work streams becoming one coherent whole.
+Subject: three broad ivory-white ribbons interlocking into a compact geometric weave with a subtle forward-flow gesture. Strong continuous silhouette, generous clean negative spaces, visually balanced and centered. The weave should be simple enough to recognize at 24 pixels.
+Style: exceptionally clean vector-like flat brand artwork; precise smooth curves, consistent ribbon thickness, restrained premium software identity. No photorealism or 3D rendering.
+Color palette: rich cobalt blue #4176E6 square background, very subtle deeper royal-blue gradient toward the lower-right; white emblem with at most a restrained ice-blue accent at the crossings.
+Composition: single icon, straight-on view, edge-to-edge blue square canvas, emblem occupies approximately 65 percent of the width and height. No outer margins or external shadows; corners will be rounded in production.
+Text: none. No letters, no Chinese characters, no words, no captions.
+Avoid: generic AI sparkles, robots, brains, circuit boards, infinity loops, ornate knots, many thin lines, known brand symbols, mockup scenes, grids of variants, watermarks.

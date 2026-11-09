@@ -68,8 +68,8 @@ export function validateEnterpriseHostBootstrap(value: unknown): EnterpriseHostB
   const user = record(candidate.user)
   const team = record(candidate.team)
   const accessExpiresAt = text(candidate, 'accessExpiresAt', 64)
-  const profileKey = text(candidate, 'profileKey', 64)
-  if (!/^[a-f0-9]{64}$/u.test(profileKey) || !Number.isFinite(Date.parse(accessExpiresAt))) {
+  const profileKey = text(candidate, 'profileKey', 32)
+  if (!/^[a-f0-9]{32}$/u.test(profileKey) || !Number.isFinite(Date.parse(accessExpiresAt))) {
     throw new EnterpriseBootstrapError()
   }
   return Object.freeze({

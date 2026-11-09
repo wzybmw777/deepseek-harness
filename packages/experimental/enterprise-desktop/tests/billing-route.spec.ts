@@ -15,7 +15,7 @@ function bootstrap(origin = 'https://cloud.example.com'): EnterpriseBootstrapPor
     cloudBaseUrl: origin,
     accessToken: 'access-a',
     accessExpiresAt: '2026-11-04T01:00:00.000Z',
-    profileKey: 'a'.repeat(64),
+    profileKey: 'a'.repeat(32),
     user: { id: 'user-a', email: 'a@example.com', name: 'Alice', roleId: 'member' },
     team: { id: 'team-a', name: 'Team A', slug: 'team-a' },
   }

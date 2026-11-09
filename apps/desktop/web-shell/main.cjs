@@ -1,12 +1,12 @@
 const fs = require('node:fs')
 const path = require('node:path')
-const { app, BrowserWindow, Menu, shell } = require('electron')
+const { app, BrowserWindow, Menu, shell, ipcMain, nativeTheme } = require('electron')
 
 const CLOUD_ORIGIN = new URL(
   process.env.DSH_ENTERPRISE_CLOUD_ORIGIN ?? 'https://dev.echoai.best',
 ).origin
 const START_URL = new URL('/enterprise/login?next=%2Fenterprise%2Fworkspace', CLOUD_ORIGIN).href
-const ICON_PATH = path.join(__dirname, '..', 'resources', 'icon-windows.png')
+const ICON_PATH = path.join(__dirname, 'assets', 'zhiliu-icon.png')
 const SKIN_CSS_PATH = path.join(__dirname, 'skin.css')
 const SKIN_JS_PATH = path.join(__dirname, 'skin.js')
 const SKIN_CSS = fs.readFileSync(SKIN_CSS_PATH, 'utf8')
@@ -18,6 +18,12 @@ const debugPort = process.env.ZHILIU_DEBUG_PORT
 if (debugPort && /^[0-9]+$/u.test(debugPort)) app.commandLine.appendSwitch('remote-debugging-port', debugPort)
 
 let mainWindow
+
+ipcMain.on('zhiliu:appearance', (event, theme) => {
+  if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame) return
+  if (!isCloudUrl(event.senderFrame.url) || !['light', 'dark', 'system'].includes(theme)) return
+  nativeTheme.themeSource = theme
+})
 
 function isCloudUrl(value) {
   try {
@@ -57,6 +63,7 @@ function createWindow() {
     autoHideMenuBar: true,
     icon: ICON_PATH,
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

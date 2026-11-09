@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { createEnterpriseHostBootstrap, EnterpriseBootstrapError, validateEnterpriseHostBootstrap } from '../src/enterprise-bootstrap.ts'
 
-const profileKey = 'a'.repeat(64)
+const profileKey = 'a'.repeat(32)
 const value = {
   cloudBaseUrl: 'https://cloud.example.com',
   accessToken: 'access-token',
@@ -21,6 +21,7 @@ it('accepts one validated bootstrap and freezes the Host payload', () => {
 it('rejects refresh credentials and malformed profile keys', () => {
   expect(() => validateEnterpriseHostBootstrap({ ...value, refreshToken: 'secret' })).toThrow(EnterpriseBootstrapError)
   expect(() => validateEnterpriseHostBootstrap({ ...value, profileKey: 'email@example.com' })).toThrow(EnterpriseBootstrapError)
+  expect(() => validateEnterpriseHostBootstrap({ ...value, profileKey: 'a'.repeat(64) })).toThrow(EnterpriseBootstrapError)
 })
 
 it('rejects credentials embedded in an origin URL', () => {

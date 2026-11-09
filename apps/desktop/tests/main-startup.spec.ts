@@ -566,7 +566,7 @@ describe('desktop main startup', () => {
       bootstrap: {
         apiVersion: 1,
         cloudBaseUrl: 'https://cloud.example.com',
-        profileKey: 'a'.repeat(64),
+        profileKey: 'a'.repeat(32),
         accessExpiresAt,
         user: { id: 'user-owner', email: 'owner@example.com', name: 'Owner', roleId: 'role-owner' },
         team: { id: 'team-default', name: 'Default', slug: 'default' },
@@ -587,7 +587,7 @@ describe('desktop main startup', () => {
       userId: 'user-owner',
       email: 'owner@example.com',
       deviceId: 'device-a',
-      profileKey: 'a'.repeat(64),
+      profileKey: 'a'.repeat(32),
       refreshToken: 'refresh-token',
     } satisfies EnterpriseCredentialRecord
     enterprise.restore.mockResolvedValue(session)
@@ -606,7 +606,7 @@ describe('desktop main startup', () => {
       cloudBaseUrl: 'https://cloud.example.com',
       accessToken: 'access-token',
       accessExpiresAt,
-      profileKey: 'a'.repeat(64),
+      profileKey: 'a'.repeat(32),
       user: session.bootstrap.user,
       team: session.bootstrap.team,
     })
@@ -614,6 +614,8 @@ describe('desktop main startup', () => {
     expect(harness.connectWelcome).not.toHaveBeenCalled()
     expect(harness.analytics).not.toHaveBeenCalled()
     expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
+    expect(await invoke(DESKTOP_IPC.localeBootstrap, 'app')).toMatchObject({ preference: null })
+    expect(await invoke(DESKTOP_IPC.onboardingApiKey, 'app')).toBe(false)
   }, 20_000)
 
   it.each([true, false])('selects the package manager before Host startup (packaged=%s)', async (packaged) => {

@@ -98,7 +98,7 @@ export class DesktopQuotaStore {
   #disposed = false
 
   constructor(options: DesktopQuotaStoreOptions = {}) {
-    this.#fetch = options.fetch ?? globalThis.fetch
+    this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis)
     this.#path = options.path ?? DESKTOP_BILLING_PATH
   }
 

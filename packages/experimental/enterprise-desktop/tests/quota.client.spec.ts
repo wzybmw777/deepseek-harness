@@ -54,6 +54,19 @@ function renderQuota(quota: DesktopQuotaStore): void {
 }
 
 describe('enterprise Desktop quota', () => {
+  it('invokes the browser fetch implementation with its global receiver', async () => {
+    const fetcher = vi.fn(async function (this: typeof globalThis) {
+      expect(this).toBe(globalThis)
+      return response(billing())
+    })
+    vi.stubGlobal('fetch', fetcher)
+    const quota = new DesktopQuotaStore()
+    stores.push(quota)
+    await quota.refresh()
+    expect(fetcher).toHaveBeenCalledOnce()
+    expect(quota.getSnapshot()).toMatchObject({ status: 'available' })
+  })
+
   it('shows the signed-in member usage and team remaining tokens', async () => {
     const quota = store(vi.fn(async () => response(billing())) as typeof fetch)
     void quota.refresh()

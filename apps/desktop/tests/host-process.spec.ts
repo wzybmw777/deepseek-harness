@@ -108,7 +108,7 @@ process.on('message', message => {
       cloudBaseUrl: 'https://cloud.example.com',
       accessToken: 'short-lived-access',
       accessExpiresAt: new Date(Date.now() + 60_000).toISOString(),
-      profileKey: 'a'.repeat(64),
+      profileKey: 'a'.repeat(32),
       user: { id: 'user-a', email: 'a@example.com', name: 'Alice', roleId: 'member' },
       team: { id: 'team-a', name: 'Team A', slug: 'team-a' },
     }

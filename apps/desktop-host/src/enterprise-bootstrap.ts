@@ -66,8 +66,8 @@ export function parseEnterpriseHostBootstrap(value: unknown, pinnedOrigin: strin
   const cloudBaseUrl = origin(text(candidate, 'cloudBaseUrl', 2048))
   if (cloudBaseUrl !== origin(pinnedOrigin)) throw new EnterpriseBootstrapError('Enterprise Desktop cloud origin changed')
   const accessExpiresAt = text(candidate, 'accessExpiresAt', 64)
-  const profileKey = text(candidate, 'profileKey', 64)
-  if (!/^[a-f0-9]{64}$/u.test(profileKey) || !Number.isFinite(Date.parse(accessExpiresAt))) {
+  const profileKey = text(candidate, 'profileKey', 32)
+  if (!/^[a-f0-9]{32}$/u.test(profileKey) || !Number.isFinite(Date.parse(accessExpiresAt))) {
     throw new EnterpriseBootstrapError()
   }
   return Object.freeze({

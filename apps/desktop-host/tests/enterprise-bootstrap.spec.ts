@@ -8,7 +8,7 @@ const value = {
   cloudBaseUrl: 'https://cloud.example.com',
   accessToken: 'access-token',
   accessExpiresAt: new Date(Date.now() + 60_000).toISOString(),
-  profileKey: 'a'.repeat(64),
+  profileKey: 'a'.repeat(32),
   user: { id: 'user-a', email: 'a@example.com', name: 'Alice', roleId: 'member' },
   team: { id: 'team-a', name: 'Team A', slug: 'team-a' },
 }
@@ -16,6 +16,11 @@ const value = {
 it('accepts one validated bootstrap and rejects the refresh token field', () => {
   expect(parseEnterpriseHostBootstrap(value, 'https://cloud.example.com')).toEqual(value)
   expect(() => parseEnterpriseHostBootstrap({ ...value, refreshToken: 'secret' }, 'https://cloud.example.com'))
+    .toThrow('bootstrap is invalid')
+})
+
+it('rejects a profile key outside the 32-character Desktop contract', () => {
+  expect(() => parseEnterpriseHostBootstrap({ ...value, profileKey: 'a'.repeat(64) }, 'https://cloud.example.com'))
     .toThrow('bootstrap is invalid')
 })
 
