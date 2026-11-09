@@ -539,6 +539,21 @@ export class TeamResources {
   }
 
   /**
+   * Resolve a verified team folder for adoption by the workspace controller.
+   * @param teamId - authenticated team.
+   * @param directory - relative resource folder.
+   * @returns absolute path within the team's mounted workspace.
+   */
+  async projectDirectory(teamId: string, directory = ''): Promise<string> {
+    return await this.mapped(async () => {
+      const segments = splitVirtualPath(directory, true)
+      const root = await this.openArea(teamId, 'files')
+      const cursor = await descendDirectories(root, segments, false)
+      try { return cursor.path } finally { await closeCursor(cursor) }
+    })
+  }
+
+  /**
    * Create a workspace file.
    * @param teamId - authenticated team id.
    * @param directory - existing virtual directory.

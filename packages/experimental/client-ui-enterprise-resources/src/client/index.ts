@@ -6,8 +6,13 @@ import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { FilesPanel } from './FilesPanel.tsx'
-import { KnowledgePanel } from './KnowledgePanel.tsx'
+import { KnowledgePanel } from './FeilianPanel.tsx'
 import { SkillsPanel } from './SkillsPanel.tsx'
+import { MarketPanel } from './MarketPanel.tsx'
+import { UsageSummary } from './UsageSummary.tsx'
+import { ProjectPicker } from './ProjectPicker.tsx'
+import { InteractionView } from './InteractionView.tsx'
+import { openProductConversation, registerProductMentions } from './mentions.ts'
 import { reportTurnUsage } from './usage-reporter.ts'
 import { de, en, es, fr, ja, NS, pt, ru, zh } from './locales.ts'
 
@@ -22,22 +27,26 @@ export const RESOURCE_PANEL_IDS = {
   files: 'enterprise-files' as MainPanelId,
   knowledge: 'enterprise-knowledge' as MainPanelId,
   skills: 'enterprise-skills' as MainPanelId,
+  market: 'enterprise-market' as MainPanelId,
 } as const
 
 /** The three resources addressable from the enterprise sidebar. */
 export type ResourceKind = keyof typeof RESOURCE_PANEL_IDS
 
 /** Required services: the slot registry, locale dictionaries, and panel navigation. */
-export const inject = ['slots', 'locale', 'layout', 'sessions']
+export const inject = [
+  'slots', 'locale', 'layout', 'sessions', 'conversation', 'inputTriggers', 'uiWorkspace', 'workspaces', 'remote', 'remote.commands',
+]
 
 function resourceKind(value: unknown): ResourceKind | undefined {
-  return value === 'files' || value === 'knowledge' || value === 'skills' ? value : undefined
+  return value === 'files' || value === 'knowledge' || value === 'skills' || value === 'market' ? value : undefined
 }
 
 function activeKind(panelId: MainPanelId | null): ResourceKind | null {
   if (panelId === RESOURCE_PANEL_IDS.files) return 'files'
   if (panelId === RESOURCE_PANEL_IDS.knowledge) return 'knowledge'
   if (panelId === RESOURCE_PANEL_IDS.skills) return 'skills'
+  if (panelId === RESOURCE_PANEL_IDS.market) return 'market'
   return null
 }
 
@@ -50,6 +59,18 @@ function activeKind(panelId: MainPanelId | null): ResourceKind | null {
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'enterprise-resources: dictionaries')
   ctx.effect(() => reportTurnUsage(ctx), 'enterprise-resources: turn usage')
+  ctx.effect(() => registerProductMentions(ctx, ctx.locale.bind(NS)), 'enterprise-resources: @ agents and knowledge')
+  ctx.slots.inject('conversation.chat.commandview', function* () {
+    yield ctx.slots.register({ name: 'conversation.chat.commandview', key: 'enterprise-task', locale: NS }, InteractionView)
+  })
+  ctx.slots.inject('shell.overlay', function* () {
+    yield ctx.slots.register({ name: 'shell.overlay', id: 'enterprise-usage-summary', locale: NS }, UsageSummary)
+  })
+  ctx.slots.inject('conversation.hero.workspace.directoryFlow', () =>
+    ctx.slots.inject('sidebar.workspaces.directoryFlow', function* () {
+      yield ctx.slots.register({ name: 'conversation.hero.workspace.directoryFlow', priority: -100, locale: NS }, ProjectPicker)
+      yield ctx.slots.register({ name: 'sidebar.workspaces.directoryFlow', priority: -100, locale: NS }, ProjectPicker)
+    }))
   ctx.slots.inject('main', function* () {
     yield ctx.slots.register({
       name: 'main',
@@ -60,12 +81,19 @@ export function apply(ctx: ClientContext): void {
       name: 'main',
       key: RESOURCE_PANEL_IDS.knowledge,
       locale: NS,
+      inject: () => ({ useKnowledge: (id: string, title: string) => openProductConversation(ctx, { kind: 'knowledge', id, title }) }),
     }, KnowledgePanel)
     yield ctx.slots.register({
       name: 'main',
       key: RESOURCE_PANEL_IDS.skills,
       locale: NS,
     }, SkillsPanel)
+    yield ctx.slots.register({
+      name: 'main',
+      key: RESOURCE_PANEL_IDS.market,
+      locale: NS,
+      inject: () => ({ useAgent: (id: string, title: string) => openProductConversation(ctx, { kind: 'agent', id, title }) }),
+    }, MarketPanel)
 
     const publishActive = (panelId: MainPanelId | null): void => {
       window.dispatchEvent(new CustomEvent(RESOURCE_ACTIVE_EVENT, { detail: activeKind(panelId) }))

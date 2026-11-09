@@ -7,6 +7,16 @@ export const HARNESS_SESSION_GUARD_PATH = '/enterprise/session-guard.js'
 export const ENTERPRISE_BRAND_NAME = '织流'
 
 const SESSION_GUARD_STYLES = String.raw`
+  html[data-dsh-enterprise] {
+    --dsw-alias-state-business-primary: #3a806b;
+  }
+
+  html[data-dsh-enterprise] [data-slot="conversation.hero.agentPreset"],
+  html[data-dsh-enterprise] [data-slot="conversation.input.model"],
+  html[data-dsh-enterprise] [data-slot="conversation.input.permission"] {
+    display: none !important;
+  }
+
   html[data-dsh-enterprise] [data-slot="sidebar.brand.name"] [class*="buildVersion"] {
     display: none !important;
   }
@@ -21,6 +31,7 @@ const SESSION_GUARD_STYLES = String.raw`
     flex: none;
     flex-direction: column;
     gap: 2px;
+    margin-top: 8px;
     margin-bottom: 8px;
     container-type: inline-size;
   }
@@ -151,13 +162,16 @@ const SESSION_GUARD_STYLES = String.raw`
     gap: 6px;
     height: 28px;
     padding: 0 8px;
+    border: 0;
     border-radius: var(--dsw-radius-sm, 8px);
     background: transparent;
     color: var(--dsw-alias-label-primary, #17191d);
+    font-family: inherit;
     font-size: 12px;
     line-height: 20px;
     text-decoration: none;
     white-space: nowrap;
+    cursor: pointer;
     transition: background-color 120ms ease;
   }
 
@@ -525,16 +539,19 @@ const SESSION_GUARD_STYLES = String.raw`
  * revalidates the enterprise session and returns to login as soon as the
  * session is revoked, including a stale back/forward cache entry.
  */
-export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
+export function createHarnessSessionGuardScript(publicPathPrefix: string): string {
+  return String.raw`(function () {
   'use strict'
+  var PUBLIC_PATH_PREFIX = ${JSON.stringify(publicPathPrefix)}
+  function enterprisePath(path) { return PUBLIC_PATH_PREFIX + path }
   document.documentElement.setAttribute('data-dsh-enterprise', '')
-  window.__DSH_SIDEBAR_BROWSER_REMOTE__ = { endpoint: '/enterprise/api/browser' }
-  var SESSION_URL = '/enterprise/api/session'
-  var BILLING_URL = '/enterprise/api/billing'
-  var LOGOUT_URL = '/enterprise/api/logout'
-  var CHANNEL_NAME = 'enterprise-session'
+  window.__DSH_SIDEBAR_BROWSER_REMOTE__ = { endpoint: enterprisePath('/enterprise/api/browser') }
+  var SESSION_URL = enterprisePath('/enterprise/api/session')
+  var BILLING_URL = enterprisePath('/enterprise/api/billing')
+  var LOGOUT_URL = enterprisePath('/enterprise/api/logout')
+  var CHANNEL_NAME = 'enterprise-session' + PUBLIC_PATH_PREFIX
   var POLL_MILLISECONDS = 15000
-  var RESOURCE_STORAGE_KEY = 'enterprise.resourcesCollapsed'
+  var RESOURCE_STORAGE_KEY = 'enterprise.resourcesCollapsed' + PUBLIC_PATH_PREFIX
   var RESOURCE_OPEN_EVENT = 'dsh-enterprise-resource-open'
   var RESOURCE_ACTIVE_EVENT = 'dsh-enterprise-resource-active'
   var BRAND_NAME = ${JSON.stringify(ENTERPRISE_BRAND_NAME)}
@@ -558,11 +575,9 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
   var settingsRow = null
   var resources = null
   var quota = null
-  var quotaRemaining = null
   var quotaPercent = null
   var quotaBar = null
   var quotaPlan = null
-  var quotaMeta = null
   var observer = null
   var titleObserver = null
 
@@ -573,7 +588,7 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
     params.delete('token')
     var query = params.toString()
     var next = window.location.pathname + (query === '' ? '' : '?' + query)
-    window.location.replace('/enterprise/login?next=' + encodeURIComponent(next))
+    window.location.replace(enterprisePath('/enterprise/login?next=') + encodeURIComponent(next))
   }
 
   function signedOutMessage() {
@@ -638,7 +653,7 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
       favicon.setAttribute('rel', 'icon')
       document.head.appendChild(favicon)
     }
-    if (favicon !== null) favicon.setAttribute('href', '/enterprise/favicon.svg')
+    if (favicon !== null) favicon.setAttribute('href', enterprisePath('/enterprise/favicon.svg'))
   }
 
   function applyDocumentTitle() {
@@ -662,14 +677,15 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
     return wrapper
   }
 
-  function resourceRow(kind, label, iconId) {
-    var row = element('button')
-    row.type = 'button'
+  function resourceRow(kind, label, iconId, destination) {
+    var row = element(destination ? 'a' : 'button')
+    if (destination) row.href = enterprisePath(destination)
+    else row.type = 'button'
     row.className = 'dsh-ent-resource-row'
     row.setAttribute('data-enterprise-resource', kind)
     row.setAttribute('aria-label', label)
     row.addEventListener('click', function () {
-      window.dispatchEvent(new CustomEvent(RESOURCE_OPEN_EVENT, { detail: kind }))
+      if (!destination) window.dispatchEvent(new CustomEvent(RESOURCE_OPEN_EVENT, { detail: kind }))
     })
     row.appendChild(resourceIcon(iconId))
     var text = element('span', label)
@@ -716,7 +732,7 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
     rows.className = 'dsh-ent-resource-rows'
     rows.appendChild(resourceRow('files', '文件', 'dsw-icon-deliver-doc-regular'))
     rows.appendChild(resourceRow('knowledge', '知识库', 'dsw-icon-database-outline-regular'))
-    rows.appendChild(resourceRow('skills', '技能', 'dsw-icon-skill-outline-regular'))
+    rows.appendChild(resourceRow('market', '智能体', 'dsw-icon-skill-outline-regular'))
     resources.appendChild(rows)
 
     var collapsed = false
@@ -734,7 +750,7 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
     var panelList = panelSlot === null ? null : panelSlot.closest('nav')
     if (panelList === null || panelList.parentElement === null) return
     createResources()
-    panelList.insertAdjacentElement('afterend', resources)
+    panelList.appendChild(resources)
   }
 
   function setActiveResource(kind) {
@@ -747,32 +763,21 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
     }
   }
 
-  function compactTokens(value) {
-    var tokens = typeof value === 'number' && isFinite(value) && value > 0 ? value : 0
-    if (tokens >= 100000000) return String(Math.round(tokens / 10000000) / 10).replace(/\.0$/, '') + '亿'
-    if (tokens >= 10000) return String(Math.round(tokens / 1000) / 10).replace(/\.0$/, '') + '万'
-    return String(Math.round(tokens))
-  }
-
   function createQuota() {
-    quota = element('a')
-    quota.href = '/enterprise/billing'
+    quota = element('button')
+    quota.type = 'button'
     quota.setAttribute('data-dsh-enterprise-quota', '')
-    quota.setAttribute('aria-label', '查看套餐与额度')
+    quota.setAttribute('aria-label', '查看套餐与积分')
+    quota.setAttribute('aria-haspopup', 'dialog')
+    quota.setAttribute('aria-expanded', 'false')
+    quota.setAttribute('aria-controls', 'enterprise-usage-summary')
+    quota.addEventListener('click', function () {
+      window.dispatchEvent(new CustomEvent('dsh-enterprise-usage-open', { detail: quota }))
+    })
     quota.hidden = true
 
     quotaPlan = element('span')
     quotaPlan.className = 'dsh-ent-quota-plan'
-
-    var amount = element('span')
-    amount.className = 'dsh-ent-quota-amount'
-    quotaRemaining = element('strong', '0')
-    var unit = element('small', 'Tokens')
-    amount.appendChild(quotaRemaining)
-    amount.appendChild(unit)
-
-    quotaMeta = element('span')
-    quotaMeta.className = 'dsh-ent-quota-mine'
 
     var track = element('span')
     track.className = 'dsh-ent-quota-track'
@@ -784,8 +789,6 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
     quotaPercent.className = 'dsh-ent-quota-percent'
 
     quota.appendChild(quotaPlan)
-    quota.appendChild(amount)
-    quota.appendChild(quotaMeta)
     quota.appendChild(track)
     quota.appendChild(quotaPercent)
   }
@@ -794,11 +797,9 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
     if (typeof document === 'undefined') return
     if (quota !== null && !quota.isConnected) {
       quota = null
-      quotaRemaining = null
       quotaPercent = null
       quotaBar = null
       quotaPlan = null
-      quotaMeta = null
     }
     var slot = document.querySelector('[data-slot="conversation.hero.options"]')
       || document.querySelector('[data-slot="conversation.session.header.utilities"]')
@@ -814,26 +815,20 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
   }
 
   function paintBilling() {
-    if (quota === null || quotaRemaining === null || quotaPercent === null || quotaBar === null) return
+    if (quota === null || quotaPercent === null || quotaBar === null) return
     var value = billing !== null && typeof billing === 'object' ? billing.quota : null
     if (value === null || typeof value !== 'object') return
-    var remaining = typeof value.remainingTokens === 'number' ? value.remainingTokens : 0
-    var total = typeof value.totalTokens === 'number' ? value.totalTokens : 0
-    var used = typeof value.usedTokens === 'number' ? value.usedTokens : 0
-    var mine = typeof value.userTokens === 'number' ? value.userTokens : 0
     var percent = typeof value.percentUsed === 'number' ? Math.max(0, Math.min(100, value.percentUsed)) : 0
     var plan = billing.plan !== null && typeof billing.plan === 'object' && typeof billing.plan.name === 'string'
       ? billing.plan.name : '未分配套餐'
     quota.hidden = false
-    quotaRemaining.textContent = compactTokens(remaining)
-    quotaPercent.textContent = Math.round(percent) + '%'
+    quotaPercent.textContent = '已用 ' + Math.round(percent) + '%'
     quotaPercent.setAttribute('data-tone', percent >= 90 ? 'danger' : percent >= 70 ? 'warning' : 'normal')
     quotaBar.style.width = percent + '%'
     quotaBar.setAttribute('data-tone', percent >= 90 ? 'danger' : percent >= 70 ? 'warning' : 'normal')
     quotaPlan.textContent = plan
-    quotaMeta.textContent = '我的 ' + compactTokens(mine)
-    quota.title = '本月已用 ' + compactTokens(used) + ' / ' + compactTokens(total) + ' Tokens；我的用量 ' + compactTokens(mine)
-    quota.setAttribute('aria-label', '本月剩余 ' + compactTokens(remaining) + ' Tokens，已用 ' + Math.round(percent) + '%，我的用量 ' + compactTokens(mine) + ' Tokens，查看套餐与额度')
+    quota.title = '本月套餐使用进度 ' + Math.round(percent) + '%'
+    quota.setAttribute('aria-label', plan + '，本月已用 ' + Math.round(percent) + '%，查看套餐与积分')
   }
 
   function chevron(up) {
@@ -916,19 +911,19 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
     var body = element('div')
     body.className = 'dsh-ent-menu-body'
 
-    var billingItem = element('a')
-    billingItem.href = '/enterprise/billing'
+    var billingItem = element('button')
+    billingItem.type = 'button'
     billingItem.setAttribute('role', 'menuitem')
     billingItem.setAttribute('data-enterprise-action', 'billing')
     billingItem.className = 'dsh-ent-menu-item'
     billingItem.appendChild(icon('<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/>'))
-    var billingLabel = element('span', '套餐与额度')
+    var billingLabel = element('span', '套餐与积分')
     billingLabel.className = 'dsh-ent-menu-label'
     billingItem.appendChild(billingLabel)
     body.appendChild(billingItem)
 
     var adminItem = element('a')
-    adminItem.href = '/enterprise/admin'
+    adminItem.href = enterprisePath('/enterprise/admin')
     adminItem.setAttribute('role', 'menuitem')
     adminItem.setAttribute('data-enterprise-action', 'admin')
     adminItem.className = 'dsh-ent-menu-item'
@@ -939,7 +934,7 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
     body.appendChild(adminItem)
 
     var passwordItem = element('a')
-    passwordItem.href = '/enterprise/account'
+    passwordItem.href = enterprisePath('/enterprise/account')
     passwordItem.setAttribute('role', 'menuitem')
     passwordItem.setAttribute('data-enterprise-action', 'password')
     passwordItem.className = 'dsh-ent-menu-item'
@@ -961,7 +956,10 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
     body.appendChild(signOutItem)
     surface.appendChild(body)
 
-    billingItem.addEventListener('click', function () { closeMenu(false) })
+    billingItem.addEventListener('click', function () {
+      closeMenu(false)
+      window.dispatchEvent(new CustomEvent('dsh-enterprise-usage-open', { detail: quota !== null && quota.isConnected ? quota : trigger }))
+    })
     adminItem.addEventListener('click', function () { closeMenu(false) })
     passwordItem.addEventListener('click', function () { closeMenu(false) })
     settingsItem.addEventListener('click', function () {
@@ -1291,3 +1289,7 @@ export const HARNESS_SESSION_GUARD_SCRIPT = String.raw`(function () {
   })
 })()
 `
+}
+
+/** Origin-root guard retained for deployments without a public path prefix. */
+export const HARNESS_SESSION_GUARD_SCRIPT = createHarnessSessionGuardScript('')

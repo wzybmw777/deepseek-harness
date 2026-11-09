@@ -1,3 +1,4 @@
+import { publicPath } from '../lib/public-path.ts'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Icon, type IconName } from '../components/Icon.tsx'
 import {
@@ -114,7 +115,7 @@ export function DashboardPage(): ReactNode {
         description="聚合组织、用量、模型供给与商业化状态。"
         group="运营监控"
         title="运行总览"
-        actions={<><Button icon="activity" onClick={load} size="small">刷新数据</Button><Button icon="arrow-right" onClick={() => { window.location.assign('/enterprise/api/harness/launch') }} size="small" variant="primary">进入工作台</Button></>}
+        actions={<><Button icon="activity" onClick={load} size="small">刷新数据</Button><Button icon="arrow-right" onClick={() => { window.location.assign(publicPath('/enterprise/api/harness/launch')) }} size="small" variant="primary">进入工作台</Button></>}
       />
 
       <div className="stat-grid">
@@ -194,7 +195,7 @@ export function DashboardPage(): ReactNode {
       </div>
 
       <Card className="recent-audit-card">
-        <SectionTitle description="最近的管理与安全事件" title="最新审计动态" actions={<a className="text-link" href="/enterprise/admin/audit">查看全部 <Icon name="arrow-right" size={13} /></a>} />
+        <SectionTitle description="最近的管理与安全事件" title="最新审计动态" actions={<a className="text-link" href={publicPath('/enterprise/admin/audit')}>查看全部 <Icon name="arrow-right" size={13} /></a>} />
         {dashboard.recentAudit.length === 0 ? (
           <EmptyState icon="audit" title="暂无审计记录" description="管理员操作与登录事件会自动记录在这里。" />
         ) : (

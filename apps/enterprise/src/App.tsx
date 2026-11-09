@@ -1,3 +1,4 @@
+import { publicPath } from './lib/public-path.ts'
 import { useEffect, type ReactNode } from 'react'
 import { BrandMark } from './components/Brand.tsx'
 import { Icon } from './components/Icon.tsx'
@@ -8,6 +9,9 @@ import { AuthProvider, useAuth } from './lib/auth.tsx'
 import { PreferencesProvider } from './lib/preferences.tsx'
 import { Link, navigate, RouterProvider, useLocation } from './lib/router.tsx'
 import { AccountPage } from './pages/AccountPage.tsx'
+import { MarketPage } from './pages/MarketPage.tsx'
+import { AgentAdminPage } from './pages/AgentAdminPage.tsx'
+import { FeilianPage } from './pages/FeilianPage.tsx'
 import { AuditPage } from './pages/AuditPage.tsx'
 import { BillingPage } from './pages/BillingPage.tsx'
 import { ChannelsPage } from './pages/ChannelsPage.tsx'
@@ -25,10 +29,11 @@ import { TeamsPage } from './pages/TeamsPage.tsx'
 import { UsagePage } from './pages/UsagePage.tsx'
 import { UsersPage } from './pages/UsersPage.tsx'
 
-const LAUNCH_URL = '/enterprise/api/harness/launch'
+const LAUNCH_URL = publicPath('/enterprise/api/harness/launch')
 
 const ADMIN_PERMISSIONS: Record<string, string | readonly string[]> = {
   '/enterprise/admin': 'dashboard.read',
+  '/enterprise/admin/agents': 'settings.write',
   '/enterprise/admin/users': 'users.read',
   '/enterprise/admin/teams': 'teams.read',
   '/enterprise/admin/roles': 'roles.read',
@@ -72,6 +77,7 @@ function AccessDenied(): ReactNode {
 
 function AdminPage({ pathname }: { pathname: string }): ReactNode {
   switch (pathname) {
+    case '/enterprise/admin/agents': return <AgentAdminPage />
     case '/enterprise/admin': return <DashboardPage />
     case '/enterprise/admin/users': return <UsersPage />
     case '/enterprise/admin/teams': return <TeamsPage />
@@ -138,6 +144,8 @@ function Routes(): ReactNode {
   if (isLogin) return <LoginPage />
   if (isLaunchGate) return <BootScreen />
   if (session === null) return <BootScreen />
+  if (pathname === '/enterprise/feilian') return can('workspace.use') ? <FeilianPage /> : <AccessDenied />
+  if (pathname === '/enterprise/agents') return can('workspace.use') ? <MarketPage /> : <AccessDenied />
   if (isAccount) return <AdminLayout><AccountPage /></AdminLayout>
   if (isBilling) {
     if (!can('workspace.use')) return <AdminLayout><AccessDenied /></AdminLayout>

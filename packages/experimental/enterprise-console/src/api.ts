@@ -1,7 +1,9 @@
+import { resolvePublicPathPrefix } from './public-path.ts'
 /** Enterprise session, administration, billing, catalog, usage, and audit API. */
 
 import { createHash } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { ProductApi } from './product-api.ts'
 import type { RemoteBrowserControl, RemoteBrowserEvent } from '@deepseek-ai/dsh-client-ui-sidebar-browser/types'
 import { DesktopAuthError, DesktopAuthService } from './desktop-auth.ts'
 import {
@@ -128,6 +130,9 @@ function attachmentDisposition(filename: string): string {
 }
 
 interface ApiDependencies {
+  readonly product?: ProductApi
+  /** Public proxy mount; omitted preserves root URLs and the legacy cookie. */
+  readonly publicPathPrefix?: string
   readonly store: EnterpriseStore
   readonly resources: TeamResources
   readonly tenantPath: (team: TeamRecord) => string
@@ -381,6 +386,8 @@ function remoteBrowserControl(body: Record<string, unknown>): RemoteBrowserContr
 
 /** HTTP API attached to the `/enterprise/api` route. */
 export class EnterpriseApi {
+  private readonly publicPathPrefix: string
+  private readonly sessionCookieName: string
   private readonly attempts = new Map<string, LoginAttempt>()
   private readonly verification: VerificationService
   private readonly desktopAuth: DesktopAuthService
@@ -388,6 +395,9 @@ export class EnterpriseApi {
   private readonly desktopGateway: DesktopModelGateway
 
   private constructor(private readonly dependencies: ApiDependencies) {
+    this.publicPathPrefix = resolvePublicPathPrefix(dependencies.publicPathPrefix ?? '')
+    this.sessionCookieName = this.publicPathPrefix === '' ? SESSION_COOKIE
+      : `${SESSION_COOKIE}_${createHash('sha256').update(this.publicPathPrefix).digest('hex').slice(0, 12)}`
     this.verification = dependencies.verification ?? new VerificationService()
     this.desktopAuth = new DesktopAuthService(dependencies.store)
     this.desktopModels = new DesktopModels(dependencies.store)
@@ -553,6 +563,7 @@ export class EnterpriseApi {
       return
     }
     const state = this.requireSession(request)
+    if (this.dependencies.product !== undefined && await this.dependencies.product.handle(request, response, url, state)) return
     if (pathname === `${BROWSER_PATH}/sessions` && method === 'POST') {
       this.requirePermission(state, 'workspace.use')
       await this.openRemoteBrowser(request, response, state)
@@ -614,6 +625,12 @@ export class EnterpriseApi {
     if (pathname === `${API_PREFIX}/resources/files/upload` && method === 'POST') {
       this.requireResourceWrite(state)
       await this.uploadResourceFile(request, response, state, url)
+      return
+    }
+    if (pathname === `${API_PREFIX}/resources/projects/location` && method === 'GET') {
+      this.requirePermission(state, 'workspace.use')
+      const team = this.resourceTeam(state, url)
+      sendJson(response, 200, { path: await this.dependencies.resources.projectDirectory(team.id, this.filePath(url, true)) })
       return
     }
     if (pathname === `${API_PREFIX}/resources/files/content` && method === 'GET') {
@@ -1160,7 +1177,7 @@ export class EnterpriseApi {
    * @returns the active user and effective permissions, or undefined when invalid.
    */
   authenticateRequest(request: IncomingMessage): EnterpriseRequestSession | undefined {
-    const raw = readCookie(request, SESSION_COOKIE)
+    const raw = readCookie(request, this.sessionCookieName)
     if (raw === undefined) return undefined
     const payload = decodeSession(raw, this.dependencies.store.sessionKey)
     if (payload === undefined) return undefined
@@ -1464,7 +1481,8 @@ export class EnterpriseApi {
       })
     }
     const secure = requestProtocol(request) === 'https'
-    const cookies = [serializeCookie(SESSION_COOKIE, '', {
+    const cookies = [serializeCookie(this.sessionCookieName, '', {
+      path: `${this.publicPathPrefix}/`,
       maxAgeSeconds: 0,
       expires: new Date(0),
       secure,
@@ -1472,7 +1490,7 @@ export class EnterpriseApi {
     const authority = requestAuthority(request)
     if (authority !== undefined) {
       cookies.push(serializeCookie(harnessCookieName(authority), '', {
-        path: '/harness/',
+        path: `${this.publicPathPrefix}/harness/`,
         maxAgeSeconds: 0,
         expires: new Date(0),
         secure,
@@ -1535,7 +1553,7 @@ export class EnterpriseApi {
     response.writeHead(303, {
       ...SECURITY_HEADERS_FOR_REDIRECT,
       'cache-control': 'no-store',
-      location: '/enterprise/login?next=%2Fenterprise%2Fworkspace',
+      location: `${this.publicPathPrefix}/enterprise/login?next=${encodeURIComponent(`${this.publicPathPrefix}/enterprise/workspace`)}`,
       'referrer-policy': 'no-referrer',
     })
     response.end()
@@ -1577,7 +1595,7 @@ export class EnterpriseApi {
   private sessionProjection(state: EnterpriseRequestSession): ReturnType<typeof sessionView> {
     const data = this.dependencies.store.snapshot()
     const team = state.user.teamId === undefined ? undefined : data.teams.find(candidate => candidate.id === state.user.teamId)
-    return sessionView(data, state.user, team === undefined ? '/enterprise/workspace' : this.dependencies.tenantPath(team))
+    return sessionView(data, state.user, team === undefined ? `${this.publicPathPrefix}/enterprise/workspace` : this.dependencies.tenantPath(team))
   }
 
   private setSessionCookie(request: IncomingMessage, response: ServerResponse, user: UserRecord): void {
@@ -1586,13 +1604,14 @@ export class EnterpriseApi {
     const issuedAt = Date.now()
     const expiresAt = issuedAt + maxAgeDays * 24 * 60 * 60 * 1000
     const secure = requestProtocol(request) === 'https'
-    response.setHeader('set-cookie', serializeCookie(SESSION_COOKIE, encodeSession({
+    response.setHeader('set-cookie', serializeCookie(this.sessionCookieName, encodeSession({
       version: 1,
       userId: user.id,
       sessionVersion: user.sessionVersion,
       issuedAt,
       expiresAt,
     }, this.dependencies.store.sessionKey), {
+      path: `${this.publicPathPrefix}/`,
       maxAgeSeconds: maxAgeDays * 24 * 60 * 60,
       expires: new Date(expiresAt),
       secure,

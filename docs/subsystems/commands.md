@@ -47,6 +47,10 @@ interface CommandDefinition {
    * that payload in the session log.
    */
   readonly recordInput?: boolean
+  /** Keep this invocation in conversation history even when no model turn starts. Defaults to false. */
+  readonly conversation?: boolean
+  /** Omit this command from discovery while retaining explicit execution. Defaults to false. */
+  readonly hidden?: boolean
   /** Execute against the receiving agent without sending the command to the model. */
   readonly handler: (invocation: CommandInvocation) => CommandResult | Promise<CommandResult>
 }
@@ -152,7 +156,7 @@ registerFileReceiptResolver(resolver: CommandFileReceiptResolver): () => void
 /**
  * List the effective immutable command descriptors for one agent.
  * @param agent - exact receiving agent and scoped-layer key.
- * @returns name-sorted descriptors after scoped shadowing.
+ * @returns name-sorted discoverable descriptors after scoped shadowing.
  */
 @Remote list(agent: Agent): readonly CommandDescriptor[]
 

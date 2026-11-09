@@ -107,7 +107,7 @@ async function commandHarness(
     currentSelection: () => ({ provider: 'fixture', model: 'fixture-model' }),
     saveSelection: () => Promise.resolve(),
   } as never)
-  const agents = new ApiSessionAgentController(ctx)
+  const agents = new ApiSessionAgentController(ctx, () => true)
   const resolveAgent = vi.spyOn(agents, 'resolveAgent').mockImplementation(id => Promise.resolve(id === agent.id
     ? { agent }
     : { error: new RemoteError('session/not-found', 'missing', { sessionId: id }) }))
@@ -362,7 +362,7 @@ describe('Session attachment reads', () => {
     const ctx = new Context()
     const readImage = vi.fn(() => Promise.reject(new AttachmentError('Stored image is unavailable.', reason)))
     ctx.provide('attachments', { readImage } as never)
-    const controller = new SessionCommandController(ctx, new ApiSessionAgentController(ctx), '/workspace')
+    const controller = new SessionCommandController(ctx, new ApiSessionAgentController(ctx, () => true), '/workspace')
     try {
       await expect(controller.attachment({
         sessionId: SessionId('unopened'),
@@ -377,7 +377,7 @@ describe('Session attachment reads', () => {
   it('contains unexpected backend failures without exposing internal details', async () => {
     const ctx = new Context()
     ctx.provide('attachments', { readImage: () => Promise.reject(new Error('/private/storage failed')) } as never)
-    const controller = new SessionCommandController(ctx, new ApiSessionAgentController(ctx), '/workspace')
+    const controller = new SessionCommandController(ctx, new ApiSessionAgentController(ctx, () => true), '/workspace')
     try {
       await expect(controller.attachment({
         sessionId: SessionId('unopened'),

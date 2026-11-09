@@ -114,6 +114,8 @@ Blockquote 作为普通 prompt 文本传递，不携带 quote 元数据。本地
 
 空的 `prompt.content` 数组仅在普通 Session 空闲、最新失败符合继续条件且使用 queue 模式时请求新轮次。待消费的用户输入阻止准入，非唤醒的注入上下文保留。`conversationContinuation` 提供共用的六码手动策略，独立于提供方重试配置。输入遵循普通 inbox 和 Loop 准入，记录带 `source.kind: 'retry'` 的空 `user/message`；输入身份与调用方元数据用于去重和恢复。仅含空白的文本块仍无效。
 
+显式标记 `conversation: true` 的命令即使没有模型轮次，也会让对话进入历史并更新活跃时间。带版本的 `sessionListMetadata` 投影在重新加载后恢复该状态；新建会话会保留这些活动中或已保存的对话，而不将它们复用为空白会话。普通配置命令继续保留原有的空白会话行为。
+
 <a id="model-experience"></a>
 ## 模型体验
 

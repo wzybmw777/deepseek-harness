@@ -4,6 +4,7 @@ import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
+import type {} from '@deepseek-ai/dsh-commands/types'
 import type { ImageAttachmentLimits } from '@deepseek-ai/dsh-attachment'
 import type { Session, SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type { ProjectionHandle, ProjectionSnapshot } from '@deepseek-ai/dsh-session-projection'
@@ -23,6 +24,15 @@ import type {
 const SEARCH_PROVIDER_CALL_LIMIT = 100
 const SESSION_SEARCH_QUERY_MAX_CHARS = 500
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
+
+/**
+ * Whether an event starts visible conversation history.
+ * @param event - committed Session event.
+ * @returns whether the event counts as conversation activity.
+ */
+export function isConversationEvent(event: SessionEvent): boolean {
+  return event.type === 'turn/start' || (event.type === 'command/run' && event.data.conversation === true)
+}
 
 const sessionListMetadataSchema: z.ZodType<SessionListMetadata> = z.object({
   blank: z.boolean(),
@@ -48,8 +58,9 @@ export function applySessionListMetadata(
   state: SessionListMetadata,
   event: SessionEvent,
 ): SessionListMetadata {
-  const blank = state.blank && event.type !== 'turn/start'
-  const lastPromptAt = event.type === 'user/message' && event.data.source.kind === 'user'
+  const conversationCommand = event.type === 'command/run' && event.data.conversation === true
+  const blank = state.blank && !isConversationEvent(event)
+  const lastPromptAt = conversationCommand || (event.type === 'user/message' && event.data.source.kind === 'user')
     ? event.time
     : state.lastPromptAt
   return blank === state.blank && lastPromptAt === state.lastPromptAt
@@ -95,7 +106,7 @@ export class ApiSessionList {
       init: () => ({ blank: true, lastPromptAt: null }),
       apply: applySessionListMetadata,
       wire: { viewSchema: sessionListMetadataSchema, view: state => state },
-      stateVersion: 1,
+      stateVersion: 2,
     })
     await this.ctx.sessionProjections.register<'imageLimits', null>({
       key: 'imageLimits',
@@ -109,6 +120,15 @@ export class ApiSessionList {
       },
       stateVersion: 1,
     })
+  }
+
+  /**
+   * Whether this Session has no conversation activity.
+   * @param session - prepared Session.
+   * @returns whether the Session is blank according to its recovered history.
+   */
+  isBlank(session: Session): boolean {
+    return this.listMetadata.stateOf(session).blank
   }
 
   /**

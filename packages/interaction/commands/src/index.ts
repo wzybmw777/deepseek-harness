@@ -73,6 +73,10 @@ export interface CommandDefinition {
    * that payload in the session log.
    */
   readonly recordInput?: boolean
+  /** Keep this invocation in conversation history even when no model turn starts. Defaults to false. */
+  readonly conversation?: boolean
+  /** Omit this command from discovery while retaining explicit execution. Defaults to false. */
+  readonly hidden?: boolean
   /** Execute against the receiving agent without sending the command to the model. */
   readonly handler: (invocation: CommandInvocation) => CommandResult | Promise<CommandResult>
 }
@@ -213,6 +217,8 @@ function normalizeDefinition(definition: CommandDefinition): RegisteredCommand {
     description: definition.description,
     ...input === undefined ? {} : { input },
     ...definition.recordInput === undefined ? {} : { recordInput: definition.recordInput },
+    ...definition.conversation === true ? { conversation: true } : {},
+    ...definition.hidden === true ? { hidden: true } : {},
     handler: definition.handler,
   })
   const descriptor = Object.freeze({
@@ -309,11 +315,12 @@ export class CommandRuntime extends TypertRemoteService {
   /**
    * List the effective immutable command descriptors for one agent.
    * @param agent - exact receiving agent and scoped-layer key.
-   * @returns name-sorted descriptors after scoped shadowing.
+   * @returns name-sorted discoverable descriptors after scoped shadowing.
    */
   @Remote
   list(agent: Agent): readonly CommandDescriptor[] {
     return Object.freeze([...this.view(agent).values()]
+      .filter(command => command.definition.hidden !== true)
       .map(command => command.descriptor)
       // Names are unique in the effective view, so equality is impossible.
       .sort((left, right) => left.name < right.name ? -1 : 1))
@@ -375,6 +382,7 @@ export class CommandRuntime extends TypertRemoteService {
       name: parsed.name,
       ...command.definition.recordInput === false ? {} : { args: parsed.rawInput },
       source: { kind: 'user' },
+      ...command.definition.conversation === true ? { conversation: true } : {},
     })
     const settle = (result: CommandResult): CommandExecution => {
       this.appendLifecycle(agent.session, 'command/done', {

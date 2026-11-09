@@ -9,8 +9,8 @@
   en: 1387c4505dde2faf
   zh: 48570fa1c13d6910
 /session-persistence-event-catalog/persistence-type-fingerprints:
-  en: 35ffb6107a5fbae2
-  zh: 06ce2128075e157b
+  en: 91bf40a1b08af35f
+  zh: f9996600c8553bfe
 /session-persistence-event-catalog/event-envelope:
   en: 56414ffd00cdc32a
   zh: 6dc11eb013e95e41
@@ -54,8 +54,8 @@
   en: 2cecb5b0ee955732
   zh: 2cecb5b0ee955732
 /session-persistence-event-catalog/events/command/command-done-log-only:
-  en: 1c5c463592a7efb8
-  zh: cfe7affebc269a69
+  en: 6d5a43f2ab6e5c73
+  zh: 3a004f9011644fd3
 /session-persistence-event-catalog/events/command/command-run-log-only:
   en: c82cc66e4f05ee0a
   zh: bfdba9f49baca386
@@ -1368,8 +1368,8 @@
   en: 4147b170f52814af
   zh: e78991ac1c41ebec
 /session-persistence-event-catalog/resolved-persistence-types/string:
-  en: ef89e74973f4a575
-  zh: 0bb1564a0418501c
+  en: d49a0e1e8faa5a4e
+  zh: fd6ea161b02cba51
 /session-persistence-event-catalog/resolved-persistence-types/string~2:
   en: 0089620bf4638263
   zh: 1922bef1713094bb
@@ -1431,11 +1431,11 @@
   en: 1282a0b3d5fa8d4d
   zh: aa533aea643dbefb
 /session-persistence-event-catalog/resolved-persistence-types/allowedmodels:
-  en: 6178321110ceb69d
-  zh: 0a9d94cab9d57487
-/session-persistence-event-catalog/resolved-persistence-types/args-commandid-name-source:
-  en: a117573a5d58cb3c
-  zh: d5ad59e17a3a815d
+  en: febad1fdb4762953
+  zh: 29d8c5495dac32f8
+/session-persistence-event-catalog/resolved-persistence-types/args-commandid-conversation-name:
+  en: b4dd87f8aadef91a
+  zh: c89e32dc3c0665f4
 /session-persistence-event-catalog/resolved-persistence-types/arguments-callid-name-step:
   en: 1cd530a4f45fcb4f
   zh: 0bf7c0f53d10a5ec
@@ -1479,8 +1479,8 @@
   en: 25df2af19bc9c46d
   zh: ebb6ecbeee25c9be
 /session-persistence-event-catalog/resolved-persistence-types/commandid-kind-sourceeventseq-text:
-  en: 87b03e1c73d2a326
-  zh: d7b9f06863cad891
+  en: 766e36802f5d99fd
+  zh: 97221c2295cbe699
 /session-persistence-event-catalog/resolved-persistence-types/compactionid-error-sourcecommandid-turn:
   en: 96152fe81878819f
   zh: 4500b4175f1a75f1
@@ -2016,11 +2016,11 @@
   en: 2186ede3e9917aea
   zh: 0cfef64045dce95b
 /session-persistence-event-catalog/resolved-persistence-types/type-command-done:
-  en: 1a28f9fcd1818880
-  zh: 6d1ed0ec06272e65
+  en: 0ec1802469b7b14f
+  zh: ecdc3e92f9d031b9
 /session-persistence-event-catalog/resolved-persistence-types/type-command-run:
-  en: d34d5e34ca1df11f
-  zh: cfe60f3974e0a6f3
+  en: 04063116b6fe1111
+  zh: 88218fe662ad8d5b
 /session-persistence-event-catalog/resolved-persistence-types/type-compaction-end:
   en: 4fe43b168566ae84
   zh: 1a041890f87409f3

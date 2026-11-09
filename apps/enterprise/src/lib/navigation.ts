@@ -20,6 +20,7 @@ export const ADMIN_NAVIGATION: AdminNavGroup[] = [
     label: '账户与服务',
     items: [
       { path: '/enterprise/billing', label: '套餐与额度', shortLabel: '额度', icon: 'plans', permission: 'workspace.use' },
+      { path: '/enterprise/agents', label: '智能体', shortLabel: '智能体', icon: 'spark', permission: 'workspace.use' },
     ],
   },
   {
@@ -28,7 +29,8 @@ export const ADMIN_NAVIGATION: AdminNavGroup[] = [
     items: [
       { path: '/enterprise/resources/files', label: '文件', shortLabel: '文件', icon: 'workspace', permission: 'workspace.use' },
       { path: '/enterprise/resources/knowledge', label: '知识库', shortLabel: '知识', icon: 'models', permission: 'workspace.use' },
-      { path: '/enterprise/resources/skills', label: '技能', shortLabel: '技能', icon: 'spark', permission: 'workspace.use' },
+      { path: '/enterprise/feilian', label: '飞链知识库', shortLabel: '飞链', icon: 'models', permission: 'workspace.use' },
+      { path: '/enterprise/resources/skills', label: '技能', shortLabel: '技能', icon: 'spark', permission: 'workspace.resources.write' },
     ],
   },
   {
@@ -71,6 +73,7 @@ export const ADMIN_NAVIGATION: AdminNavGroup[] = [
     items: [
       { path: '/enterprise/admin/audit', label: '审计日志', shortLabel: '审计', icon: 'audit', permission: 'audit.read' },
       { path: '/enterprise/admin/settings', label: '系统设置', shortLabel: '设置', icon: 'settings', permission: 'settings.read' },
+      { path: '/enterprise/admin/agents', label: '智能体与积分', shortLabel: '智能体', icon: 'spark', permission: 'settings.write' },
     ],
   },
 ]

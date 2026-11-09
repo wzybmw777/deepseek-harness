@@ -14,6 +14,7 @@ The tenant sidebar's Files, Knowledge, and Skills entries open inside the curren
 ## Table of Contents
 
 - [Use this package](#use-this-package)
+- [Workbench market, usage, and project folders](#workbench-market-usage-and-project-folders)
 - [Understand the implementation](#understand-the-implementation)
 - [Further Exploration](#further-exploration)
 - [Model Experience](#model-experience)
@@ -25,9 +26,9 @@ The tenant sidebar's Files, Knowledge, and Skills entries open inside the curren
 <a id="use-this-package"></a>
 ## Use this package
 
-The enterprise tenant runtime inserts this plugin into every tenant's generated patch. It has no configuration fields and the Host export is inert; the browser entry registers three main panels and the sidebar bridge.
+The enterprise tenant runtime inserts this plugin into every tenant's generated patch. It has no configuration fields and the Host export is inert; the browser entry registers four main panels, an anchored usage summary, both project-directory flow occupants, and the sidebar bridge.
 
-Selecting **Files**, **Knowledge**, or **Skills** from the resource group keeps the current URL and opens the corresponding main panel. Every member can navigate, preview, download, and inspect shared content. Writers can also upload, create folders, rename, delete, edit text files, maintain knowledge articles, and manage user-authored skills; knowledge-generated skills stay read-only. Failures stay inside the active page with retry or dismiss controls.
+Selecting **Files** or **Knowledge** from the resource group keeps the current URL and opens the corresponding main panel. Every member can navigate, preview, download, and inspect shared content. Writers can also upload, create folders, rename, delete, edit text files, maintain knowledge articles, and manage user-authored skills; knowledge-generated skills stay read-only. Failures stay inside the active page with retry or dismiss controls.
 
 The pages are available only when the enterprise Host plugin supplies its authenticated resource API. They are not a standalone administration site and do not accept a team id from the browser.
 
@@ -35,13 +36,30 @@ The same browser plugin reports each completed Turn's provider-reported token us
 
 -----
 
+The default sidebar shows Files, Knowledge and Agents. Skill administration remains available through the existing resource surfaces. The Knowledge panel includes a deployment-prefix-aware Feilian entry for independent account binding and queries; it does not migrate existing articles or merge the two services.
+
+Resource requests and usage reports derive the public deployment prefix from the current tenant mount, so a workbench at `/preview/t/<slug>/harness/` uses `/preview/enterprise/api/` without sending mutations or billing reports to the origin-root deployment.
+
+<a id="workbench-market-usage-and-project-folders"></a>
+## Workbench market, usage, and project folders
+
+Marketplace choices create a fresh conversation in the first registered project, initializing the default project when eligible. They preserve other conversations' drafts; the project can be changed before submission.
+
+Agents opens the native marketplace for discovery, categories, search, and unlock confirmation. Using an unlocked agent selects it through the existing chat @ interaction. Its durable command reference restores execution status, output, and owner-checked downloads in conversation history; there is no separate work gallery. The authenticated product API still enforces access, expiration, usage reservation, and settlement. The current agent executor accepts text materials; attachments remain in ordinary chat. The quota trigger opens a small plan-progress and available-points popover; authorized users explicitly open administration in another tab for details. The existing plan meter and the new product wallet remain separate.
+
+For the web preview, New project browses only the signed-in team sandbox, supports breadcrumbs and new folders, and passes a verified directory to the existing workspace owner. It does not upload computer folders. Desktop retains its native Windows folder chooser; sharing this new visual treatment with Desktop is deferred. Folder creation remains writer-only. The two directory-flow single slots are intentionally shadowed at priority -100; the usage overlay has its own list-entry id. Errors offer in-place retry.
+
+New copy is supplied in Chinese and English; the other supported locales use English for these additions.
+
+Feilian is the default native Knowledge panel: binding, unbinding, account state, and accessible libraries stay inside the workbench. Selecting a library starts its @ chat interaction. Internal Zhiliu knowledge remains available through the secondary tab. Feilian accounts, plans, storage, and billing remain independent; explicit registration and provisioning links may open their configured external portals. This panel exposes library discovery and retrieval, not the full Feilian document-management interface.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The browser plugin owns the `enterprise-files`, `enterprise-knowledge`, and `enterprise-skills` main-slot keys. The enterprise sidebar dispatches `dsh-enterprise-resource-open`; the plugin validates the requested kind and calls `ctx.layout.selectPanel`. A `layout.panelInfo` subscription dispatches `dsh-enterprise-resource-active`, which drives the sidebar's selected row. Fiber teardown removes the slot entries, dictionaries, and both DOM subscriptions.
+The browser plugin owns the `enterprise-files`, `enterprise-knowledge`, `enterprise-skills`, and `enterprise-market` main-slot keys. The enterprise sidebar dispatches `dsh-enterprise-resource-open`; the plugin validates the requested kind and calls `ctx.layout.selectPanel`. A `layout.panelInfo` subscription dispatches `dsh-enterprise-resource-active`, which drives the sidebar's selected row. Fiber teardown removes the slot entries, dictionaries, and both DOM subscriptions.
 
 The page code calls the same-origin `/enterprise/api/resources/*` routes for listings and mutations. The server resolves the team from the signed-in session, so no page sends a team identifier. File uploads stream the selected `File` as the request body, and the pages treat a 204 mutation response as success. A 401 response emits `enterprise:unauthorized` for the surrounding enterprise guard.
 
@@ -73,7 +91,7 @@ The page code calls the same-origin `/enterprise/api/resources/*` routes for lis
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through the existing `skill-filesystem` catalog and `skill` tool, which discover user-authored skills and the generated `team-knowledge` skill; the browser pages add no prompt, tool, or Session event.
+Indirectly, through the existing `skill-filesystem` catalog and `skill` tool, which discover user-authored skills and the generated `team-knowledge` skill; the file and internal knowledge pages add no prompt or tool. Agent and direct Feilian interactions use the existing command lifecycle in the Session log. Inline Feilian references serialize retrieved answers into the normal logged user message before submission; query errors retain the draft. Private agent prompts and skills remain in the server executor, separate from the ordinary Harness model history.
 
 #### KV Cache effect
 

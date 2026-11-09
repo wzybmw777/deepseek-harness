@@ -12,6 +12,7 @@ import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-typert-registry'
+import { isConversationEvent } from './list.ts'
 
 /** Cold Session identity absent from persistence. */
 export class ApiSessionNotFound extends Error {}
@@ -49,7 +50,7 @@ export class ApiSessionPresetConflict extends Error {
   }
 }
 
-/** A blank Session chosen for reuse started a turn before this Host acquired its writer. */
+/** A blank Session chosen for reuse acquired conversation activity before this Host acquired its writer. */
 class ApiSessionStartedSinceObserved extends Error {}
 
 /** Placement and Agent preset for one Session created for a new conversation. */
@@ -118,8 +119,14 @@ export class ApiSessionAgentController {
   private readonly claims = new Map<SessionId, Promise<void>>()
   private readonly imageAdmissionChains = new WeakMap<Agent, Promise<void>>()
 
-  /** @param ctx - Host context carrying Agent, model, persistence, and Typert services. */
-  constructor(private readonly ctx: Context) {}
+  /**
+   * @param ctx - Host context carrying Agent, model, persistence, and Typert services.
+   * @param conversationIsBlank - owning list projection's prepared Session reader.
+   */
+  constructor(
+    private readonly ctx: Context,
+    private readonly conversationIsBlank: (session: Session) => boolean,
+  ) {}
 
   /**
    * Configure Session and Agent lookups for Typert.
@@ -358,7 +365,7 @@ export class ApiSessionAgentController {
       if (observed.header.cwd !== request.cwd) {
         throw new ApiSessionCwdConflict(sessionId, request.cwd, observed.header.cwd)
       }
-      reusable = request.reusable(sessionId) && !observed.events.some(event => event.type === 'turn/start')
+      reusable = request.reusable(sessionId) && !observed.events.some(isConversationEvent)
     }
     const composition = await this.composeAgent(request.agentPreset)
     if (!reusable) return this.createMinted(request.cwd, composition)
@@ -413,10 +420,10 @@ export class ApiSessionAgentController {
     }
   }
 
-  /** Whether no turn has started, by the predicate the preset registry's `select` enforces. */
+  /** Conversation history and preset turn boundaries must both allow reuse. */
   private isBlank(session: Session): boolean {
     const boundary = this.ctx.agents.turnBoundaryOf(session)
-    return boundary.openTurnStartSeq === null && boundary.lastTurn === 0
+    return this.conversationIsBlank(session) && boundary.openTurnStartSeq === null && boundary.lastTurn === 0
   }
 
   /** Without a roster, reuse cannot apply a named preset. */

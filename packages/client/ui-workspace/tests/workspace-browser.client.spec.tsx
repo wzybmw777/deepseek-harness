@@ -188,7 +188,7 @@ describe('WorkspaceBrowser', () => {
     if (mode === 'workspace') {
       expect(renderFactorySlot).toHaveBeenCalledWith('contextMenu.button', {
         target: { kind: 'workspace', value: { workspaceId: wid('alpha'), path: '/projects/alpha', displayTitle: 'alpha' } },
-        label: '工作区“alpha”的操作', className: rowCss.iconButton,
+        label: '项目“alpha”的操作', className: rowCss.iconButton,
       })
     }
   })

@@ -19,6 +19,7 @@ An opt-in Host plugin that serves an enterprise login page, administration conso
 - [Team resources](#team-resources)
 - [Remote browser](#remote-browser)
 - [Billing and quota](#billing-and-quota)
+- [Curated agents and points](#curated-agents-and-points)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
@@ -53,7 +54,7 @@ Configuration:
 - `tenantContainerImage` / `tenantContainerPodman` — rootless image and Podman executable.
 - `tenantContainerMemoryMb` / `tenantContainerPids` — hard per-container memory and PID ceilings.
 - `tenantPortStart` / `tenantPortEnd` — loopback port range reserved for tenant containers.
-- `maxTenantProcesses`, `tenantIdleTimeoutMinutes`, and `tenantStartTimeoutMs` — capacity and lifecycle limits.
+- `maxTenantProcesses`, `tenantIdleTimeoutMinutes`, and `tenantStartTimeoutMs` — capacity and lifecycle limits. The startup timeout also bounds each Podman preparation command; a failed platform check can be retried on the next launch request.
 - `browserChromePath` / `browserXvfbPath` — headful Chromium and Xvfb executables on the enterprise Host.
 - `browserProxyUrl` / `browserProxyBypass` — optional Chromium proxy and bypass list.
 - `browserMaxSessions` / `browserMaxSessionsPerUser` / `browserIdleTimeoutMinutes` — remote Browser capacity and idle cleanup.
@@ -80,7 +81,9 @@ A reverse proxy should route both `/t/` and `/enterprise/` to the same Host list
 <a id="team-resources"></a>
 ## Team resources
 
-The tenant sidebar's resource group opens [team resource panels](../client-ui-enterprise-resources/README.md) inside the current Harness workbench. Selecting Files, Knowledge, or Skills keeps the URL under `/t/<team-slug>/harness/` and switches the main panel; it does not navigate to the `/enterprise/resources/*` administration pages or an external service. Every member with `workspace.use` can browse the team-shared resources. Mutations additionally require `workspace.resources.write`, which the owner role receives by default, so members see the same files, knowledge, and skills as read-only. The tenant resource panels resolve the team from the signed-in user; the `/enterprise/resources/*` administration pages show a team selector only to roles with `teams.read` and send the selected `teamId`. The API rejects requests resolved through an unassigned or inactive own team, refuses cross-team access without `teams.read`, and checks the browser origin on every mutation.
+The resource group is mounted inside the sidebar's panel navigation so its rows reserve space before the project list in both expanded and collapsed layouts.
+
+The tenant sidebar's resource group opens [team resource panels](../client-ui-enterprise-resources/README.md) inside the current Harness workbench. Selecting Files or Knowledge keeps the URL under `/t/<team-slug>/harness/` and switches the main panel; it does not navigate to the `/enterprise/resources/*` administration pages or an external service. Every member with `workspace.use` can browse the team-shared resources. Mutations additionally require `workspace.resources.write`, which the owner role receives by default, so members see the same files, knowledge, and skills as read-only. The tenant resource panels resolve the team from the signed-in user; the `/enterprise/resources/*` administration pages show a team selector only to roles with `teams.read` and send the selected `teamId`. The API rejects requests resolved through an unassigned or inactive own team, refuses cross-team access without `teams.read`, and checks the browser origin on every mutation.
 
 Files are rooted at `<tenantRoot>/<team-id>/documents/deepseek-harness/default-workspace`, the same default workspace used by that team's Harness process. The console supports directory navigation, folder creation, multipart-free bounded uploads, text preview and editing, rename, delete, and streamed download. Uploads are limited to 20 MiB; inline text is limited to 2 MiB and must be strict UTF-8. Hidden paths, absolute paths, `..`, symlinks, and non-regular files are rejected. On Linux, each directory traversal stays pinned to an open directory descriptor through `/proc/self/fd` with `O_NOFOLLOW`.
 
@@ -102,14 +105,25 @@ Only public HTTP(S) addresses are accepted. URLs containing credentials, literal
 <a id="billing-and-quota"></a>
 ## Billing and quota
 
-Each team shares the current plan's `monthlyCredits` for the UTC calendar month. Owners with `billing.purchase` can order or renew a plan from `/enterprise/billing`; another order is blocked while one is pending, and an administrator with `orders.write` confirms or rejects it. The workbench sidebar shows the team's remaining quota, the signed-in member's usage, and a link to the same page.
+Each team shares the current plan's `monthlyCredits` for the UTC calendar month. Owners with `billing.purchase` can order or renew a plan from `/enterprise/billing`; another order is blocked while one is pending, and an administrator with `orders.write` confirms or rejects it. The workbench shows the plan and percentage used with a link to the same page; absolute token counts stay in administration. The ordinary composer hides the new-task mode, model and permission selectors while existing backend defaults and authorization remain authoritative.
 
 The tenant browser plugin reports each completed Turn's provider-reported tokens to `POST /enterprise/api/billing/usage`; the server records `inputTokens + outputTokens` once per `sessionId` and `turn`. Reporting runs in the browser, so a turn completed while that page was closed is not metered, and a zero balance does not currently block model requests.
+
+<a id="curated-agents-and-points"></a>
+## Curated agents and points
+
+`/enterprise/agents` lists published agents, member-specific rights, points and tasks. `/enterprise/admin/agents` requires `settings.write` and manages prompts, Skill instructions, model, executor, price, duration, publication, member spending permissions and usage reconciliation. Drafts can be saved before selecting a model. Publishing requires a configured rate and installed executor. An administrator allocates each member's wallet and permissions explicitly; team membership grants no shared balance or agent rights.
+
+The independent `<dataDir>/product.sqlite` stores integer micro-points, purchases, entitlements, tasks, complete credential-free model requests, usage settlement and encrypted Feilian bindings. Back it up together with `credential.key` and `<dataDir>/product-jobs`. Purchase keys deduplicate charges. Thirty days means 30 continuous 24-hour periods from purchase; custom durations and permanent rights are supported. Unlocking buys access; every run also spends points. Input/output rates are whole points per million provider-reported tokens. The service reserves the context budget before dispatch, freezes rates and settles reported usage once. Interrupted or unmetered requests retain a hold for administrator reconciliation. Existing Harness chat still uses the separate legacy browser-reported quota path.
+
+Set `productPptSkillRoot` / `DSH_PRODUCT_PPT_SKILL_ROOT` to a verified PPT Master installation and `productPython` / `DSH_PRODUCT_PYTHON` to its dependency environment. Model and export timeouts default to 240000 and 180000 ms; output limit is 12000 tokens and concurrency is 2 (`productModelTimeoutMs`, `productExportTimeoutMs`, `productMaxOutputTokens`, `productConcurrency`; matching `DSH_PRODUCT_*` variables appear in the overlay). The user explicitly selects Quick Generate using supplied material: 3–6 SVG pages, native editable PPTX, no external research, images or notes. PPT Master performs final quality and postflight checks. Downloads require the task owner. Text execution is available; video execution is not provisioned. No commercial price or usage rate is seeded.
+
+`/enterprise/feilian` exchanges the user's Feilian password once for an encrypted restricted plugin key. The password and elevated member token are discarded. Live capabilities and selected-knowledge-base queries use Feilian's existing API; unbinding revokes its key. Set `productFeilianBaseUrl` / `DSH_PRODUCT_FEILIAN_BASE_URL` to the independent API. Optional `productFeilianRegistrationUrl` and `productFeilianEnterpriseUrl` expose public portal links; `productFeilianTimeoutMs` defaults to 120000 ms. Their matching environment variables are in the overlay. Databases, passwords, plans and billing remain independent. Enterprise provisioning, integrated payment, personal plan tiers and ordinary-chat points enforcement remain deferred.
 
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through the existing `skill-filesystem` catalog and `skill` tool, which expose user-created skills and `team-knowledge`; knowledge references remain ordinary workspace files and the plugin adds no prompt, tool, or Session event.
+Team knowledge acts indirectly through the existing `skill-filesystem` catalog and `skill` tool, which expose user-created skills and `team-knowledge`; knowledge references remain ordinary workspace files. Product tasks separately send configured prompts, Skill instructions and supplied material; complete requests persist in product attempts outside Harness Sessions.
 
 #### KV Cache effect
 
@@ -137,3 +151,9 @@ Creating or deleting a skill, or changing its description, changes the skill cat
 None.
 
 </details>
+
+## Reverse-proxy subpaths
+
+Set `DSH_ENTERPRISE_PATH_PREFIX=/preview` (plugin `publicPathPrefix`) and build the enterprise frontend with the same variable. The edge must strip that prefix before forwarding HTTP and WebSocket requests. The prefix is empty by default; configured prefixes use slash-separated letters, numbers, underscores, or hyphens without a trailing slash. Public links, tenant asset URLs, session-cookie names and paths, and sign-out channels remain scoped to that mount. Set `DSH_ENTERPRISE_PUBLIC_ORIGIN` to the HTTPS origin without the path. A path mount shares its browser origin with the main site and is not an origin security boundary.
+
+The workbench now opens the agent marketplace and compact plan/points summary inside the current client document. Only an explicit administration-details link opens another tab. New-project browsing resolves only authenticated team sandbox directories through `/resources/projects/location`; it never accepts arbitrary host paths. The web preview uses server folders, while Desktop retains its native local chooser.

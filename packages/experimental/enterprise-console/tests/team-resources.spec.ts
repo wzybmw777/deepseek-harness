@@ -17,6 +17,16 @@ afterEach(async () => {
 })
 
 describe('team resources', () => {
+  it('resolves only verified project directories within the selected team', async () => {
+    const { root, resources } = await createResources()
+    await resources.createDirectory('team-a', 'project')
+    const workspace = join(root, 'team-a', 'documents', 'deepseek-harness', 'default-workspace')
+    expect(await resources.projectDirectory('team-a', 'project')).toBe(join(workspace, 'project'))
+    await expect(resources.projectDirectory('team-b', 'project')).rejects.toMatchObject({ code: 'not_found' })
+    await expect(resources.projectDirectory('team-a', '../team-b')).rejects.toMatchObject({ code: 'unsafe_path' })
+    await symlink(root, join(workspace, 'escape'))
+    await expect(resources.projectDirectory('team-a', 'escape')).rejects.toMatchObject({ code: 'invalid_path' })
+  })
   it('stores workspace files and exposes their text for editing', async () => {
     const { root, resources } = await createResources()
 

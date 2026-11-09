@@ -1,6 +1,6 @@
 /** Same-origin client for the enterprise team resource API. */
 
-const API_ROOT = '/enterprise/api'
+import { enterpriseApiPath } from './public-path.ts'
 
 /** One workspace file-manager entry returned by the API. */
 export interface TeamFileEntry {
@@ -115,8 +115,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const url = new URL(`${API_ROOT}${path}`, window.location.origin)
+/**
+ * Send an authenticated request through the enterprise's mounted API path.
+ * @param path - API-relative path.
+ * @param options - method and payload.
+ * @returns decoded response.
+ */
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const url = new URL(`${enterpriseApiPath('')}${path}`, window.location.origin)
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value !== undefined && value !== '') url.searchParams.set(key, value)
   }
@@ -145,6 +151,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
 /** Team-scoped resource operations used by the three workbench pages. */
 export const resourcesApi = {
+  /** Resolve an existing team folder for use by the workspace controller. */
+  projectLocation: (path = ''): Promise<{ path: string }> => request('/resources/projects/location', { query: { path } }),
   /** Read the signed-in member's team resource capabilities. */
   access: (): Promise<ResourceAccess> => request('/resources/access'),
   /** List one workspace directory. */
@@ -203,7 +211,7 @@ export const resourcesApi = {
 
 /** Upload one file body into the selected workspace directory. */
 export async function uploadResourceFile(directory: string, file: File): Promise<TeamFileEntry> {
-  const url = new URL(`${API_ROOT}/resources/files/upload`, window.location.origin)
+  const url = new URL(`${enterpriseApiPath('')}/resources/files/upload`, window.location.origin)
   if (directory !== '') url.searchParams.set('path', directory)
   url.searchParams.set('name', file.name)
   const response = await fetch(url, {
@@ -231,7 +239,7 @@ export async function uploadResourceFile(directory: string, file: File): Promise
 
 /** Build the same-origin download URL for one workspace file. */
 export function resourceFileDownloadUrl(path: string): string {
-  const url = new URL(`${API_ROOT}/resources/files/download`, window.location.origin)
+  const url = new URL(`${enterpriseApiPath('')}/resources/files/download`, window.location.origin)
   url.searchParams.set('path', path)
   return `${url.pathname}${url.search}`
 }

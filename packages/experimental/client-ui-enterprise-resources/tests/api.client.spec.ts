@@ -2,9 +2,11 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resourcesApi, uploadResourceFile } from '../src/client/api.ts'
+import { enterprisePagePath } from '../src/client/public-path.ts'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  window.history.replaceState(null, '', '/')
 })
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -15,6 +17,19 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('enterprise resources API client', () => {
+  it('opens the bound knowledge page beneath the same preview mount', () => {
+    window.history.replaceState(null, '', '/yituobo/t/acme/harness/')
+    expect(enterprisePagePath('/feilian')).toBe('/yituobo/enterprise/feilian')
+  })
+  it('keeps resource mutations inside the current deployment prefix', async () => {
+    window.history.replaceState(null, '', '/preview/t/acme/harness/')
+    const fetcher = vi.fn(async () => new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetcher)
+    await resourcesApi.removeFile('reports/q1.csv')
+    const [input] = fetcher.mock.calls[0] as unknown as [URL]
+    expect(input.pathname).toBe('/preview/enterprise/api/resources/files')
+  })
+
   it('reads the signed-in member resource capabilities', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ canWrite: false })))
 

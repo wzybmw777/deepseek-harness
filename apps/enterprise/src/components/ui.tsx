@@ -226,6 +226,19 @@ export function Modal({ open, onClose, title, description, children, footer, wid
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onCloseRef.current()
+      if (event.key === 'Tab' && surfaceRef.current) {
+        const controls = [...surfaceRef.current.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]')]
+          .filter(control => control.getClientRects().length > 0)
+        const first = controls[0], last = controls.at(-1)
+        if (!first || !last) { event.preventDefault(); surfaceRef.current.focus(); return }
+        const outside = !surfaceRef.current.contains(document.activeElement)
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === surfaceRef.current || outside)) {
+          event.preventDefault(); last.focus()
+        }
+        else if (!event.shiftKey && (document.activeElement === last || document.activeElement === surfaceRef.current || outside)) {
+          event.preventDefault(); first.focus()
+        }
+      }
     }
     document.addEventListener('keydown', onKeyDown)
     document.body.classList.add('has-modal')

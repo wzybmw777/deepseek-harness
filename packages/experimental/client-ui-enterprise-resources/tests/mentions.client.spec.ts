@@ -1,0 +1,80 @@
+// @vitest-environment jsdom
+import { webcrypto } from 'node:crypto'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import { registerProductMentions } from '../src/client/mentions.ts'
+import { workbenchProducts } from '../src/client/product-api.ts'
+import { zh } from '../src/client/locales.ts'
+
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); sessionStorage.clear() })
+const member = { user: { id: 'member', teamId: 'team' }, permissions: ['workspace.use'] }
+const wallet = { balance: 100, reserved: 0, canRun: true, canPurchase: true }
+const agent = { id: 'copy', title: '文案助手', description: '', category: '短视频', output: 'text' as const, price: 5, durationDays: 30, entitlement: { active: true, expiresAt: null } }
+
+function fixture() {
+  const sources: InputTriggerSource[] = []
+  const execute = vi.fn(async () => ({ ok: true, value: { result: { kind: 'success' } } }))
+  const actx = {}
+  const context = {
+    inputTriggers: { registerSource: (value: InputTriggerSource) => { sources.push(value); return vi.fn() } },
+    remote: { commands: { execute } },
+    conversation: { input: { for: () => ({ state: { getSnapshot: () => ({ occurrences: [] }) } }) } },
+    sessions: { sessionOf: () => ({ sessionId: 'session-a' }), scope: () => actx,
+      using: async (_id: string, _options: object, callback: () => Promise<unknown>) => callback() },
+  }
+  registerProductMentions(context as never, makeTranslate(zh))
+  vi.spyOn(workbenchProducts, 'identity').mockResolvedValue(member)
+  vi.spyOn(workbenchProducts, 'market').mockResolvedValue({ agents: [agent], wallet, jobs: [] })
+  vi.spyOn(workbenchProducts, 'feilian').mockResolvedValue({ available: true, bound: true, state: 'connected', knowledgeBases: [{ id: 'kb-a', name: '产品资料' }] })
+  return { source: sources[0]!, knowledge: sources[1]!, execute, actx }
+}
+
+describe('@ products', () => {
+  it('offers unlocked agents and bound libraries; inline picks only offer knowledge', async () => {
+    const { source, knowledge } = fixture()
+    const session = { sessionId: 'session-a' } as never
+    const request = { query: '', position: 'leading', drilled: false, signal: new AbortController().signal } as const
+    const rows = [...await source.candidates(session, request), ...await knowledge.candidates(session, request)]
+    expect(rows.map(row => row.name)).toMatchInlineSnapshot(`
+      [
+        "文案助手",
+        "发现更多智能体",
+        "产品资料",
+        "打开飞链知识库",
+      ]
+    `)
+    const inline = [...await source.candidates(session, { ...request, position: 'inline' }), ...await knowledge.candidates(session, { ...request, position: 'inline' })]
+    expect(inline.map(row => row.name)).toEqual(['产品资料'])
+    vi.mocked(workbenchProducts.market).mockResolvedValue({
+      agents: [{ ...agent, entitlement: { active: false, expiresAt: null } }], wallet, jobs: [],
+    })
+    expect((await source.candidates(session, request)).some(row => row.name === '文案助手')).toBe(false)
+  })
+
+  it('retains the same run identity until both admission and history recording are confirmed', async () => {
+    vi.stubGlobal('crypto', webcrypto)
+    const { source, execute, actx } = fixture()
+    execute.mockRejectedValueOnce(new TypeError('lost response'))
+    const run = vi.spyOn(workbenchProducts, 'run').mockResolvedValue({ id: 'job-a' } as never)
+    const outcome = await source.matchEnter!({ sessionId: 'session-a' } as never, '@文案助手 制作新品文案', new AbortController().signal, { attachments: 0 })
+    if (!outcome || typeof outcome !== 'object' || !('claim' in outcome)) throw new Error('Expected a product claim')
+    expect((await outcome.claim.submit('制作新品文案', actx as never, [])).kind).toBe('error')
+    expect((await outcome.claim.submit('制作新品文案', actx as never, [])).kind).toBe('success')
+    expect(run.mock.calls[0]?.[2]).toBe(run.mock.calls[1]?.[2])
+    expect(execute).toHaveBeenLastCalledWith('session-a', '/enterprise-task {"kind":"agent","jobId":"job-a"}', [])
+    expect(sessionStorage.length).toBe(0)
+  })
+
+  it('records a Feilian answer in the chosen chat without opening another page', async () => {
+    const { knowledge: source, execute, actx } = fixture()
+    const query = vi.spyOn(workbenchProducts, 'queryFeilian').mockResolvedValue({ answer: '已有资料中的答案' })
+    const start = location.href
+    const outcome = await source.matchEnter!({ sessionId: 'session-a' } as never, '@飞链/产品资料 查询售后政策', new AbortController().signal, { attachments: 0 })
+    if (!outcome || typeof outcome !== 'object' || !('claim' in outcome)) throw new Error('Expected a library claim')
+    expect((await outcome.claim.submit('查询售后政策', actx as never, [])).kind).toBe('success')
+    expect(query).toHaveBeenCalledWith('kb-a', '查询售后政策')
+    expect(execute).toHaveBeenLastCalledWith('session-a', expect.stringContaining('已有资料中的答案'), [])
+    expect(location.href).toBe(start)
+  })
+})

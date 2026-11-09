@@ -1,6 +1,6 @@
 import { JSDOM } from 'jsdom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { HARNESS_SESSION_GUARD_SCRIPT } from '../src/session-guard.ts'
+import { HARNESS_SESSION_GUARD_SCRIPT, createHarnessSessionGuardScript } from '../src/session-guard.ts'
 
 const OWNER_SESSION = {
   user: {
@@ -43,7 +43,7 @@ function requestUrl(input: RequestInfo | URL): string {
   return input instanceof URL ? input.href : input.url
 }
 
-function harnessPage(session: unknown, billing: unknown = BILLING) {
+function harnessPage(session: unknown, billing: unknown = BILLING, publicPathPrefix = '') {
   const dom = new JSDOM(`<!doctype html><html><head><title>DSH Local Build</title></head><body>
     <div data-slot="sidebar.brand.mark"><svg data-whale="sidebar"></svg></div>
     <div data-slot="sidebar.brand.name"><span data-copy-version="true"><span class="localBuildTitle">DSH 本地构建</span><span class="buildVersion">0.2.2</span></span></div>
@@ -71,11 +71,25 @@ function harnessPage(session: unknown, billing: unknown = BILLING) {
   ))
   dom.window.fetch = fetch
   dom.window.setInterval = vi.fn(() => 1) as typeof dom.window.setInterval
-  dom.window.eval(HARNESS_SESSION_GUARD_SCRIPT)
+  dom.window.eval(publicPathPrefix === '' ? HARNESS_SESSION_GUARD_SCRIPT : createHarnessSessionGuardScript(publicPathPrefix))
   return { dom, fetch }
 }
 
 describe('enterprise session guard', () => {
+  it('keeps session, billing, browser, and account links inside a public subpath', async () => {
+    const { dom, fetch } = harnessPage(OWNER_SESSION, BILLING, '/preview')
+    await vi.waitFor(() => {
+      expect(dom.window.document.querySelector('[data-dsh-enterprise-account]')).not.toBeNull()
+      expect(fetch).toHaveBeenCalledWith('/preview/enterprise/api/billing', expect.objectContaining({ credentials: 'same-origin' }))
+    })
+    expect(fetch).toHaveBeenCalledWith('/preview/enterprise/api/session', expect.objectContaining({ credentials: 'same-origin' }))
+    expect(fetch).toHaveBeenCalledWith('/preview/enterprise/api/billing', expect.objectContaining({ credentials: 'same-origin' }))
+    expect(dom.window).toHaveProperty('__DSH_SIDEBAR_BROWSER_REMOTE__', { endpoint: '/preview/enterprise/api/browser' })
+    const links = [...dom.window.document.querySelectorAll<HTMLAnchorElement>('a[href]')]
+    expect(links.length).toBeGreaterThan(0)
+    expect(links.every(link => link.getAttribute('href')?.startsWith('/preview/'))).toBe(true)
+  })
+
   it('renders the enterprise account card and its administration menu', async () => {
     const { dom, fetch } = harnessPage(OWNER_SESSION)
     const document = dom.window.document
@@ -103,23 +117,25 @@ describe('enterprise session guard', () => {
     expect(document.querySelector('link[rel="icon"]')?.getAttribute('href')).toBe('/enterprise/favicon.svg')
     const resources = document.querySelector<HTMLElement>('[data-dsh-enterprise-resources]')
     expect(resources).not.toBeNull()
-    expect(resources?.previousElementSibling?.tagName).toBe('NAV')
+    expect(resources?.parentElement).toBe(document.querySelector('[aria-label="全局面板"]'))
+    expect(resources?.previousElementSibling?.tagName).toBe('BUTTON')
     expect([...resources?.querySelectorAll('[data-enterprise-resource]') ?? []].map(row => row.textContent)).toEqual([
       '文件',
       '知识库',
-      '技能',
+      '智能体',
     ])
     expect([...resources?.querySelectorAll('[data-enterprise-resource] use') ?? []].map(use => use.getAttribute('href'))).toEqual([
       '#dsw-icon-deliver-doc-regular',
       '#dsw-icon-database-outline-regular',
       '#dsw-icon-skill-outline-regular',
     ])
-    expect([...resources?.querySelectorAll<HTMLButtonElement>('[data-enterprise-resource]') ?? []].map(row => row.type)).toEqual([
+    expect([...resources?.querySelectorAll<HTMLButtonElement>('button[data-enterprise-resource]') ?? []].map(row => row.type)).toEqual([
       'button',
       'button',
       'button',
     ])
     expect(resources?.querySelectorAll('a[data-enterprise-resource]')).toHaveLength(0)
+    expect(resources?.querySelector('[data-enterprise-resource="market"]')?.tagName).toBe('BUTTON')
     const opened: unknown[] = []
     dom.window.addEventListener('dsh-enterprise-resource-open', (event) => {
       opened.push((event as CustomEvent<unknown>).detail)
@@ -137,14 +153,15 @@ describe('enterprise session guard', () => {
     expect(resources?.innerHTML).not.toContain('soiawork.cn')
     const quota = document.querySelector<HTMLAnchorElement>('[data-dsh-enterprise-quota]')
     await vi.waitFor(() => { expect(quota?.hidden).toBe(false) })
-    expect(quota?.getAttribute('href')).toBe('/enterprise/billing')
-    expect(quota?.textContent).toContain('375万')
+    expect(quota?.getAttribute('href')).toBeNull()
+    expect(quota?.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(quota?.textContent).not.toContain('Tokens')
     expect(quota?.textContent).toContain('25%')
     expect(quota?.textContent).toContain('团队版')
-    expect(quota?.textContent).toContain('我的 12.5万')
+    expect(quota?.textContent).not.toContain('375万')
     expect(quota?.querySelector<HTMLElement>('.dsh-ent-quota-track > span')?.style.width).toBe('25%')
     expect(quota?.parentElement?.hasAttribute('data-hero-options')).toBe(true)
-    expect(quota?.getAttribute('aria-label')).toContain('我的用量 12.5万 Tokens')
+    expect(quota?.getAttribute('aria-label')).toContain('本月已用 25%')
     expect(document.querySelector('[data-slot="sidebar.panellist"]')?.querySelector('[data-dsh-enterprise-quota]')).toBeNull()
     const resourceToggle = resources?.querySelector<HTMLButtonElement>('.dsh-ent-resource-toggle')
     expect(resources?.getAttribute('data-collapsed')).toBe('false')
@@ -163,13 +180,19 @@ describe('enterprise session guard', () => {
     expect(menu?.textContent).toContain('admin@echoai.best')
     expect([...document.querySelectorAll('[data-dsh-enterprise-menu] [role="menuitem"]')]
       .filter(item => !item.hasAttribute('hidden')).map(item => item.textContent)).toEqual([
-      '套餐与额度',
+      '套餐与积分',
       '管理控制台',
       '修改密码',
       '工作台设置',
       '退出登录',
     ])
-    expect(document.querySelector('[data-enterprise-action="billing"]')?.getAttribute('href')).toBe('/enterprise/billing')
+    const billing = document.querySelector<HTMLButtonElement>('[data-enterprise-action="billing"]')
+    expect(billing?.tagName).toBe('BUTTON')
+    const usageOpened = vi.fn()
+    dom.window.addEventListener('dsh-enterprise-usage-open', usageOpened)
+    billing?.click()
+    expect(usageOpened).toHaveBeenCalledOnce()
+    expect(menu?.hidden).toBe(true)
     expect(document.querySelector('[data-enterprise-action="admin"]')?.getAttribute('href')).toBe('/enterprise/admin')
     expect(document.querySelector('[data-enterprise-action="password"]')?.getAttribute('href')).toBe('/enterprise/account')
     expect(menu?.textContent).not.toContain('企业后台')

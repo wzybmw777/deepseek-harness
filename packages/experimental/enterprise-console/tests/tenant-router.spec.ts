@@ -86,7 +86,7 @@ interface GatewayHarness {
   close(): Promise<void>
 }
 
-async function startGateway(upstream: Upstream): Promise<GatewayHarness> {
+async function startGateway(upstream: Upstream, publicPathPrefix = ''): Promise<GatewayHarness> {
   const runtimeCalls: string[] = []
   const upgrades: string[] = []
   const sessions: Record<string, EnterpriseRequestSession> = {
@@ -96,6 +96,7 @@ async function startGateway(upstream: Upstream): Promise<GatewayHarness> {
     'reader-a': { kind: 'member', user: user('reader-a', 'team-a'), permissions: [] },
   }
   const gateway = new TenantGateway({
+    publicPathPrefix,
     store: { snapshot: data },
     runtime: {
       ensureTenant: async (team) => {
@@ -149,6 +150,19 @@ function sessionHeader(id: string): HeadersInit {
 }
 
 describe.sequential('tenant gateway routing', () => {
+  it('preserves a public subpath in login, injected guard, forwarding, and mount redirects', async () => {
+    const upstream = await startUpstream()
+    const gateway = await startGateway(upstream, '/preview')
+    cleanups.push(gateway.close, upstream.close)
+    const guest = await fetch(`${gateway.base}/t/acme/harness/?view=chat`, { redirect: 'manual' })
+    expect(guest.headers.get('location')).toBe('/preview/enterprise/login?next=%2Fpreview%2Ft%2Facme%2Fharness%2F%3Fview%3Dchat')
+    const page = await fetch(`${gateway.base}/t/acme/harness/`, { headers: sessionHeader('owner-a') })
+    expect(await page.text()).toContain('src="/preview/enterprise/session-guard.js"')
+    expect(upstream.requests[0]?.headers['x-forwarded-prefix']).toBe('/preview/t/acme/harness')
+    const mount = await fetch(`${gateway.base}/t/acme/harness`, { redirect: 'manual' })
+    expect(mount.headers.get('location')).toBe('/preview/t/acme/harness/')
+  })
+
   it('redirects unauthenticated requests without starting a tenant process', async () => {
     const upstream = await startUpstream()
     const gateway = await startGateway(upstream)

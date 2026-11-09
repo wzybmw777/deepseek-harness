@@ -662,7 +662,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: '@Remote list(agent: Agent): readonly CommandDescriptor[]',
         description: 'List the effective immutable command descriptors for one agent.',
         parameters: [{ name: 'agent', description: 'exact receiving agent and scoped-layer key.' }],
-        returns: 'name-sorted descriptors after scoped shadowing.',
+        returns: 'name-sorted discoverable descriptors after scoped shadowing.',
       },
       {
         signature: 'find(agent: Agent, name: string): CommandDefinition | undefined',
@@ -5865,7 +5865,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CommandDefinition',
-    declaration: 'export interface CommandDefinition {\n    readonly definitionId?: CommandDefinitionId;\n    readonly name: string;\n    readonly description: string;\n    readonly input?: CommandInputDescriptor;\n    readonly recordInput?: boolean;\n    readonly handler: (invocation: CommandInvocation) => CommandResult | Promise<CommandResult>;\n}',
+    declaration: 'export interface CommandDefinition {\n    readonly definitionId?: CommandDefinitionId;\n    readonly name: string;\n    readonly description: string;\n    readonly input?: CommandInputDescriptor;\n    readonly recordInput?: boolean;\n    readonly conversation?: boolean;\n    readonly hidden?: boolean;\n    readonly handler: (invocation: CommandInvocation) => CommandResult | Promise<CommandResult>;\n}',
   },
   {
     name: 'CommandDefinitionId',
@@ -6621,7 +6621,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'GenerateOptions',
-    declaration: 'export interface GenerateOptions<Purpose extends string = LlmRequestPurpose> {\n    provider: string;\n    model: string;\n    reasoningEffort?: ReasoningEffortId;\n    messages: RequestMessage[];\n    system?: string;\n    tools?: ToolSchema[];\n    toolHistory?: ToolHistory;\n    temperature?: number;\n    maxTokens?: number;\n    stop?: string[];\n    signal?: AbortSignal;\n    sessionId?: Branded<\'SessionId\'>;\n    purpose?: Purpose;\n}',
+    declaration: 'export interface GenerateOptions<Purpose extends string = LlmRequestPurpose> {\n    provider: string;\n    model: string;\n    reasoningEffort?: ReasoningEffortId;\n    messages: RequestMessage[];\n    system?: string;\n    tools?: ToolSchema[];\n    toolHistory?: ToolHistory;\n    temperature?: number;\n    maxTokens?: number;\n    stop?: string[];\n    signal?: AbortSignal;\n    sessionId?: Branded<\'SessionId\'>;\n    purpose?: Purpose;\n    requestId?: LlmRequestId;\n}',
   },
   {
     name: 'GenericCallView',
@@ -7018,6 +7018,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LlmReasoningEffortInfo',
     declaration: 'export interface LlmReasoningEffortInfo {\n    id: ReasoningEffortId;\n    name: string;\n    description?: string;\n}',
+  },
+  {
+    name: 'LlmRequestId',
+    declaration: 'export type LlmRequestId = Branded<\'LlmRequestId\'>;',
   },
   {
     name: 'LlmRequestPurpose',
@@ -7525,7 +7529,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PiAiRequestHeaderContext',
-    declaration: 'export interface PiAiRequestHeaderContext extends Readonly<Pick<GenerateOptions<string>, \'provider\' | \'model\' | \'sessionId\' | \'purpose\'>> {\n    readonly baseURL: string;\n}',
+    declaration: 'export interface PiAiRequestHeaderContext extends Readonly<Pick<GenerateOptions<string>, \'provider\' | \'model\' | \'sessionId\' | \'purpose\' | \'requestId\'>> {\n    readonly baseURL: string;\n}',
   },
   {
     name: 'PlatformSession',

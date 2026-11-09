@@ -930,6 +930,9 @@ importers:
 
   apps/enterprise:
     dependencies:
+      '@deepseek-ai/dsh-util-crypto':
+        specifier: workspace:*
+        version: link:../../packages/util/crypto
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -9165,6 +9168,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:~
         version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-api-remotes':
+        specifier: workspace:*
+        version: link:../../api/remotes
       '@deepseek-ai/dsh-api-session-controller':
         specifier: workspace:*
         version: link:../../api/session-controller
@@ -9174,6 +9180,15 @@ importers:
       '@deepseek-ai/dsh-client-test-runtime':
         specifier: workspace:*
         version: link:../../test-support/client-runtime
+      '@deepseek-ai/dsh-client-ui-chat':
+        specifier: workspace:*
+        version: link:../../client/ui-chat
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:*
+        version: link:../../client/ui-conversation
+      '@deepseek-ai/dsh-client-ui-input-trigger':
+        specifier: workspace:*
+        version: link:../../client/ui-input-trigger
       '@deepseek-ai/dsh-client-ui-layout':
         specifier: workspace:*
         version: link:../../client/ui-layout
@@ -9186,12 +9201,18 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:*
         version: link:../../client/ui-slots
+      '@deepseek-ai/dsh-client-ui-workspace':
+        specifier: workspace:*
+        version: link:../../client/ui-workspace
       '@deepseek-ai/dsh-session':
         specifier: workspace:*
         version: link:../../core/session
       '@deepseek-ai/dsh-token-meter':
         specifier: workspace:*
         version: link:../../llm/token-meter
+      '@deepseek-ai/dsh-util-crypto':
+        specifier: workspace:*
+        version: link:../../util/crypto
       '@testing-library/react':
         specifier: ^16.3.3
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -10068,6 +10089,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-sidebar-browser':
         specifier: workspace:*
         version: link:../../client/ui-sidebar-browser
+      '@deepseek-ai/dsh-commands':
+        specifier: workspace:*
+        version: link:../../interaction/commands
       '@deepseek-ai/dsh-host-webserver':
         specifier: workspace:*
         version: link:../../host/webserver

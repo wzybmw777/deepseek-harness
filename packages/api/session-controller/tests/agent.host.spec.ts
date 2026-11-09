@@ -41,7 +41,7 @@ async function harness(): Promise<{ ctx: Context; agents: ApiSessionAgentControl
     currentSelection: () => ({ provider: 'fixture', model: 'fixture-model' }),
     saveSelection: () => Promise.resolve(),
   } as never)
-  const agents = new ApiSessionAgentController(ctx)
+  const agents = new ApiSessionAgentController(ctx, () => true)
   agents.initialize()
   return { ctx, agents }
 }

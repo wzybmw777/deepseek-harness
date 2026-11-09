@@ -40,6 +40,24 @@
     },
     {
       "path": "../../llm/token-meter"
+    },
+    {
+      "path": "../../client/ui-workspace"
+    },
+    {
+      "path": "../../client/ui-input-trigger"
+    },
+    {
+      "path": "../../client/ui-conversation/tsconfig.client.json"
+    },
+    {
+      "path": "../../client/ui-chat/tsconfig.client.json"
+    },
+    {
+      "path": "../../api/remotes/tsconfig.client.json"
+    },
+    {
+      "path": "../../util/crypto"
     }
   ]
 }

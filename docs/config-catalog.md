@@ -655,6 +655,8 @@ export type OnboardingProcess = 'compact' | 'standard' | 'detailed'
 export interface Config {
   /** Offer the browser API-key step when no native shell owns credential onboarding. */
   credentialOnboarding: boolean
+  /** Show the Models page in Settings; deployments with centrally managed models hide it. */
+  showSettingsSection: boolean
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-ui-settings-models -->
@@ -893,6 +895,101 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-deepseek-account-platform -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-enterprise-console -->
+<a id="deepseek-aidsh-enterprise-console"></a>
+
+## `@deepseek-ai/dsh-enterprise-console`
+
+- `inject`: `webServer` · `webApp` · `connection`
+- `source`: [`packages/experimental/enterprise-console/src/index.ts:43`](../packages/experimental/enterprise-console/src/index.ts)
+
+```ts config-catalog
+/** Enterprise console deployment settings. */
+export interface Config {
+  /** Independent Feilian API origin, reachable from this service. */
+  readonly productFeilianBaseUrl?: string
+  /** Public Feilian registration entry; its account and plan stay independent. */
+  readonly productFeilianRegistrationUrl?: string
+  /** Provisioning portal responsible for checking enterprise eligibility. */
+  readonly productFeilianEnterpriseUrl?: string
+  /** Timeout for Feilian authorization and query requests. */
+  readonly productFeilianTimeoutMs: number
+  /** Installed PPT Master Skill directory; omit to keep PPT products unavailable. */
+  readonly productPptSkillRoot?: string
+  /** Python environment containing the PPT Master exporter dependencies. */
+  readonly productPython: string
+  /** Timeout for a single product model request. */
+  readonly productModelTimeoutMs: number
+  /** Timeout for Skill validation or a complete PPT export. */
+  readonly productExportTimeoutMs: number
+  /** Maximum model output tokens for one product task. */
+  readonly productMaxOutputTokens: number
+  /** Maximum concurrent product tasks in this console process. */
+  readonly productConcurrency: number
+  /** Built `apps/enterprise/dist` directory. */
+  readonly distRoot: string
+  /** Private directory holding users, teams, billing, usage, audit, and keys. */
+  readonly dataDir: string
+  /** First owner address; used only when the catalog is empty. */
+  readonly bootstrapAdminEmail: string
+  /** Initial product name; later changes live in the settings API. */
+  readonly brandName: string
+  /** Private directory containing one Harness home and workspace per team. */
+  readonly tenantRoot: string
+  /** Built `apps/cli/lib/bin.js` entry used for tenant processes. */
+  readonly tenantDshEntry: string
+  /** Repository build tree mounted read-only into each tenant container. */
+  readonly tenantSourceRoot: string
+  /** Harness home whose profile and credentials seed each new tenant. */
+  readonly tenantTemplateHome: string
+  /** Web profile every tenant process loads. */
+  readonly tenantProfile: string
+  /** Browser-facing origin for tenant links, for example `https://app.example.com`. */
+  readonly tenantPublicOrigin?: string
+  /** Public reverse-proxy mount; omitted or empty serves the origin root. */
+  readonly publicPathPrefix?: string
+  /** HTTPS gateway that delivers verification codes to email or SMS providers. */
+  readonly verificationWebhookUrl?: string
+  /** Bearer token sent to the verification delivery gateway. */
+  readonly verificationWebhookToken?: string
+  /** Rootless container image containing the tenant shell and network relay. */
+  readonly tenantContainerImage: string
+  /** Podman executable used to supervise tenant containers. */
+  readonly tenantContainerPodman: string
+  /** Hard memory ceiling for each tenant container in MiB. */
+  readonly tenantContainerMemoryMb: number
+  /** Hard PID ceiling for each tenant container. */
+  readonly tenantContainerPids: number
+  /** First loopback port available to a tenant process. */
+  readonly tenantPortStart: number
+  /** Last loopback port available to a tenant process. */
+  readonly tenantPortEnd: number
+  /** Maximum number of simultaneously running tenant processes. */
+  readonly maxTenantProcesses: number
+  /** Stop a tenant process after this many idle minutes. */
+  readonly tenantIdleTimeoutMinutes: number
+  /** Maximum time per container preparation command and from tenant spawn to ready. */
+  readonly tenantStartTimeoutMs: number
+  /** Headful Chromium executable used by the remote Sidebar Browser. */
+  readonly browserChromePath: string
+  /** Xvfb executable that supplies the remote browser's private display. */
+  readonly browserXvfbPath: string
+  /** HTTP proxy used by every remote Chromium request, or direct networking. */
+  readonly browserProxyUrl?: string
+  /** Comma-separated proxy bypass list understood by Chromium. */
+  readonly browserProxyBypass?: string
+  /** Maximum Chromium pages across every team. */
+  readonly browserMaxSessions: number
+  /** Maximum Chromium pages owned by one team member. */
+  readonly browserMaxSessionsPerUser: number
+  /** Close an unattended Chromium page after this many idle minutes. */
+  readonly browserIdleTimeoutMinutes: number
+  /** Maximum document navigation wait for one Chromium page. */
+  readonly browserNavigationTimeoutMs: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-enterprise-console -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-api-speech-to-text -->
 <a id="deepseek-aidsh-experimental-api-speech-to-text"></a>
@@ -4918,6 +5015,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-client-ui-deliverables` | `connection` · `sessionQuery` · `sessionController` · `workspaceFiles` · `fs` · `sandboxPolicy` · `workspaceChanges` | [`packages/client/ui-deliverables/src/index.ts`](../packages/client/ui-deliverables/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-directory-picker-browse` | — | [`packages/client/ui-directory-picker-browse/src/index.ts`](../packages/client/ui-directory-picker-browse/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-directory-picker-native` | — | [`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-enterprise-resources` | — | [`packages/experimental/client-ui-enterprise-resources/src/index.ts`](../packages/experimental/client-ui-enterprise-resources/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-entry-customization` | — | [`packages/client/ui-entry-customization/src/index.ts`](../packages/client/ui-entry-customization/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-file-actions` | — | [`packages/client/ui-file-actions/src/index.ts`](../packages/client/ui-file-actions/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-file-drag` | — | [`packages/client/ui-file-drag/src/index.ts`](../packages/client/ui-file-drag/src/index.ts) |
@@ -4970,6 +5068,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-cua` | — | [`packages/experimental/cua/src/index.ts`](../packages/experimental/cua/src/index.ts) |
 | `@deepseek-ai/dsh-deepseek-llm-api-extensions` | — | [`packages/llm/deepseek-llm-api-extensions/src/index.ts`](../packages/llm/deepseek-llm-api-extensions/src/index.ts) |
 | `@deepseek-ai/dsh-deliverable-file-references` | `systemPrompt` | [`packages/deliverables/deliverable-file-references/src/index.ts`](../packages/deliverables/deliverable-file-references/src/index.ts) |
+| `@deepseek-ai/dsh-enterprise-desktop` | — | [`packages/experimental/enterprise-desktop/src/index.ts`](../packages/experimental/enterprise-desktop/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-auto-review` | `approval` · `llm` · `permissionPresets` · `sessions` · `tools` · `workingDirectory` | [`packages/experimental/auto-review/src/index.ts`](../packages/experimental/auto-review/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-claude-code-mods` | — | [`packages/experimental/client-ui-claude-code-mods/src/index.ts`](../packages/experimental/client-ui-claude-code-mods/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-stats` | — | [`packages/experimental/client-ui-stats/src/index.ts`](../packages/experimental/client-ui-stats/src/index.ts) |

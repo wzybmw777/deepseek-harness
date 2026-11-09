@@ -13,7 +13,6 @@ import { tenantHarnessPath } from './tenant-paths.ts'
 
 const CONTAINER_PORT = 3000
 const CONTAINER_TMP_BYTES = '256m'
-const DEFAULT_PODMAN_TIMEOUT_MS = 15_000
 const OUTPUT_LIMIT_BYTES = 65_536
 const TERMINATION_GRACE_MILLISECONDS = 5_000
 const STDERR_RING_BYTES = 16_384
@@ -33,6 +32,8 @@ export interface TenantRuntimeConfig {
   readonly root: string
   /** Browser-facing origin used in each tenant's advertised URL. */
   readonly publicOrigin: string
+  /** Public proxy prefix; omitted preserves the root mount. */
+  readonly publicPathPrefix?: string
   /** Built `apps/cli/lib/bin.js` entry. */
   readonly dshEntry: string
   /** Repository build tree whose application directories are mounted read-only. */
@@ -51,7 +52,7 @@ export interface TenantRuntimeConfig {
   readonly maxProcesses: number
   /** Stop a container after this many minutes without an active request or socket. */
   readonly idleTimeoutMinutes: number
-  /** Maximum time from container start to authenticated readiness. */
+  /** Maximum time per preparation command and from container start to authenticated readiness. */
   readonly startTimeoutMs: number
   /** Rootless container image. */
   readonly containerImage: string
@@ -160,6 +161,8 @@ export function tenantRuntimePatch(
     '  config:',
     `    documentsDirectory: ${JSON.stringify(documents)}`,
     '- insert:',
+    '    - id: enterprise-product-chat',
+    `      name: ${JSON.stringify(resolve(dirname(toolPolicyPluginEntry), 'tenant-product-chat.js'))}`,
     '    - id: enterprise-tenant-tool-policy',
     `      name: ${JSON.stringify(toolPolicyPluginEntry)}`,
     '    - id: enterprise-resources-ui',
@@ -196,7 +199,7 @@ export function tenantContainerRunArgs(launch: TenantContainerLaunch): string[] 
   const home = join(tenantRoot, 'home')
   const workspace = join(tenantRoot, 'documents', 'deepseek-harness', 'default-workspace')
   const runtimePatch = join(tenantRoot, 'runtime.patch.yml')
-  const publicUrl = new URL(tenantHarnessPath(launch.slug), config.publicOrigin).href
+  const publicUrl = new URL(`${config.publicPathPrefix ?? ''}${tenantHarnessPath(launch.slug)}`, config.publicOrigin).href
   const nodeRoot = resolve(dirname(process.execPath), '..')
   const command = [
     `/usr/bin/socat ${shellQuote(`TCP-LISTEN:${String(launch.port)},bind=0.0.0.0,reuseaddr,fork`)} `
@@ -333,7 +336,7 @@ async function freeLoopbackPort(start: number, end: number, reserved: ReadonlySe
   throw new Error(`tenant runtime: no free loopback port in ${String(start)}-${String(end)}`)
 }
 
-function runPodman(executable: string, args: string[], timeoutMs = DEFAULT_PODMAN_TIMEOUT_MS): Promise<PodmanResult> {
+function runPodman(executable: string, args: string[], timeoutMs: number): Promise<PodmanResult> {
   return new Promise<PodmanResult>((resolveResult, reject) => {
     const child = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = ''
@@ -350,10 +353,10 @@ function runPodman(executable: string, args: string[], timeoutMs = DEFAULT_PODMA
       child.kill('SIGKILL')
       finish(new Error(`tenant runtime: podman command timed out after ${String(timeoutMs)} ms`))
     }, timeoutMs)
-    child.stdout?.setEncoding('utf8')
-    child.stderr?.setEncoding('utf8')
-    child.stdout?.on('data', (chunk: string) => { stdout = (stdout + chunk).slice(-OUTPUT_LIMIT_BYTES) })
-    child.stderr?.on('data', (chunk: string) => { stderr = (stderr + chunk).slice(-OUTPUT_LIMIT_BYTES) })
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => { stdout = (stdout + chunk).slice(-OUTPUT_LIMIT_BYTES) })
+    child.stderr.on('data', (chunk: string) => { stderr = (stderr + chunk).slice(-OUTPUT_LIMIT_BYTES) })
     child.once('error', (error) => {
       finish(new Error(`tenant runtime: could not run podman: ${redactTenantRuntimeText(error.message)}`))
     })
@@ -536,9 +539,9 @@ class TenantRuntimeProcess {
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     this.child = child
-    child.stdout?.setEncoding('utf8')
-    child.stderr?.setEncoding('utf8')
-    child.stderr?.on('data', (chunk: string) => {
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stderr.on('data', (chunk: string) => {
       this.stderr = (this.stderr + chunk).slice(-STDERR_RING_BYTES)
     })
 
@@ -555,7 +558,7 @@ class TenantRuntimeProcess {
       const timeout = setTimeout(() => {
         finish(new Error(`tenant runtime: container did not become ready within ${String(this.options.config.startTimeoutMs)} ms`))
       }, this.options.config.startTimeoutMs)
-      child.stdout?.on('data', (chunk: string) => {
+      child.stdout.on('data', (chunk: string) => {
         if (settled) return
         buffer += chunk
         let newline = buffer.indexOf('\n')
@@ -608,7 +611,7 @@ class TenantRuntimeProcess {
       }, (response) => {
         response.resume()
         const values = response.headers['set-cookie']
-        const cookie = (Array.isArray(values) ? values : values === undefined ? [] : [values])
+        const cookie = (values ?? [])
           .map(value => value.split(';', 1)[0]?.trim())
           .find(value => value !== undefined && value.startsWith('dsh-auth-'))
         if (response.statusCode !== 303 || cookie === undefined) {
@@ -796,14 +799,17 @@ export class TenantRuntimeManager {
   }
 
   private preparePlatform(): Promise<void> {
-    this.platformPreparation ??= this.verifyPlatform()
+    this.platformPreparation ??= this.verifyPlatform().catch((error: unknown) => {
+      this.platformPreparation = undefined
+      throw error
+    })
     return this.platformPreparation
   }
 
   private async verifyPlatform(): Promise<void> {
     let rootless: PodmanResult
     try {
-      rootless = await runPodman(this.options.config.podman, podmanRootlessProbeArgs())
+      rootless = await runPodman(this.options.config.podman, podmanRootlessProbeArgs(), this.options.config.startTimeoutMs)
     } catch (error) {
       throw new Error(`tenant runtime: rootless Podman probe failed: ${redactTenantRuntimeText(error instanceof Error ? error.message : String(error))}`)
     }
@@ -811,7 +817,7 @@ export class TenantRuntimeManager {
       throw new Error('tenant runtime: Podman must report Rootless=true')
     }
     try {
-      await runPodman(this.options.config.podman, ['image', 'exists', this.options.config.containerImage], 10_000)
+      await runPodman(this.options.config.podman, ['image', 'exists', this.options.config.containerImage], this.options.config.startTimeoutMs)
     } catch (error) {
       throw new Error(`tenant runtime: tenant image is unavailable: ${redactTenantRuntimeText(error instanceof Error ? error.message : String(error))}`)
     }
@@ -841,10 +847,10 @@ export class TenantRuntimeManager {
   private async cleanupStaleContainers(): Promise<void> {
     const result = await runPodman(this.options.config.podman, [
       'ps', '--all', '--quiet', '--filter', `label=${TENANT_LABEL}`,
-    ])
+    ], this.options.config.startTimeoutMs)
     const ids = result.stdout.split(/\s+/u).filter(value => value !== '')
     if (ids.length === 0) return
-    await runPodman(this.options.config.podman, ['rm', '--force', ...ids])
+    await runPodman(this.options.config.podman, ['rm', '--force', ...ids], this.options.config.startTimeoutMs)
     this.options.logger.info(`enterprise tenant containers: removed ${String(ids.length)} stale container(s)`)
   }
 

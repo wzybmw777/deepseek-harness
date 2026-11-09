@@ -53,6 +53,16 @@ function staleAttempt(): SubmitAttempt {
 }
 
 describe('submit-machine: plain × enter', () => {
+  it('adjudicates @ commands and sends an unclaimed file reference through the normal sink', () => {
+    const machine = new SubmitMachine()
+    const attempt = enterAdjudicating(machine, '@library question')
+    const effects = machine.dispatch({ type: 'adjudicated', attempt, outcome: undefined })
+    expect(effectAt(effects, 0, 'default-sink').draft).toBe('@library question')
+    const selected = new SubmitMachine()
+    const selection = enterAdjudicating(selected, '@specialist materials')
+    const claim: CommandClaim = { name: 'specialist', token: '@specialist ', submit: async () => ({ kind: 'success' }) }
+    expect(effectAt(selected.dispatch({ type: 'adjudicated', attempt: selection, outcome: { claim } }), 0, 'begin-submit').args).toBe('materials')
+  })
   it('empty and whitespace-only drafts produce nothing', () => {
     const m = new SubmitMachine()
     expect(m.dispatch({ type: 'enter', mode: 'queue', draft: '', occurrences: [], quotes: [], attachmentIds: [] })).toEqual([])

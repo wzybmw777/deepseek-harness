@@ -1,3 +1,4 @@
+import { enterpriseApiPath } from './public-path.ts'
 /** Browser-side reporting of completed-turn token usage to the enterprise ledger. */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -57,7 +58,7 @@ export function reportTurnUsage(ctx: Context): () => void {
         const payload = meteredUsage(binding.sessionId, turn, events)
         if (payload === undefined) continue
         reported.add(key)
-        void fetch('/enterprise/api/billing/usage', {
+        void fetch(enterpriseApiPath('/billing/usage'), {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'content-type': 'application/json' },
