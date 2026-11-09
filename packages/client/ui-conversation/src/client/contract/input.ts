@@ -300,7 +300,7 @@ export interface InputState {
   /** Monotonic editor revision (span CAS compares against this). */
   readonly draftRev: number
   /**
-   * Submit plane: `adjudicating` while a `/` line is checked against the
+   * Submit plane: `adjudicating` while a `/` or `@` line is checked against the
    * commands, `submitting` while a claimed command runs, and `sending` while
    * an ordinary message waits for the Host to accept it. The editor and the
    * attachments are read-only in all three.

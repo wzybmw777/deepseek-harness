@@ -1,3 +1,4 @@
+import { publicPath } from '../lib/public-path.ts'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react'
 import { BrandMark } from '../components/Brand.tsx'
 import { Icon } from '../components/Icon.tsx'
@@ -19,8 +20,8 @@ function destination(next: string | undefined): string {
 
 function finishNavigation(next: string | undefined): void {
   const target = destination(next)
-  if (target.startsWith('/harness')) {
-    window.location.assign('/enterprise/api/harness/launch')
+  if (target.startsWith('/harness') || target.startsWith('/t/')) {
+    window.location.assign(publicPath('/enterprise/api/harness/launch'))
     return
   }
   navigate(target, { replace: true })

@@ -6,7 +6,7 @@ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ResourcePanelProps } from '../src/client/common.tsx'
 import { FilesPanel } from '../src/client/FilesPanel.tsx'
-import { KnowledgePanel } from '../src/client/KnowledgePanel.tsx'
+import { InternalKnowledgePanel as KnowledgePanel } from '../src/client/KnowledgePanel.tsx'
 import { SkillsPanel } from '../src/client/SkillsPanel.tsx'
 import { zh } from '../src/client/locales.ts'
 

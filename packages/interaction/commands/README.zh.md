@@ -45,6 +45,8 @@ ctx.commands.register({
 
 处理器返回 `success` 或 `error`，并可附带由适配器渲染的 UI 文本。`recordInput` 默认为 true；若载荷由命令自己的权威领域事件持有，命令会将 `recordInput` 设为 false，避免会话日志重复记录该输入。同一作用域内重复注册同名命令会抛出异常。
 
+`hidden: true` 在应用作用域遮蔽后，从 `list(agent)` 中隐藏内部命令。`find(agent, name)` 和显式执行仍能解析它；发现界面的可见性不构成访问控制。省略或设为 false 时，命令继续参与发现。
+
 ### 命令语法
 
 命令行的第 0 字节必须是斜杠，随后是小写名称（可含字母、数字、`_` 或 `-`），再之后是输入末尾或空白。名称之后的每个字节——包括分隔空白——都是该命令的 `rawInput`，命令自己拥有其专属语法。不符合命令语法、或名称未知的行会被适配器拒绝，而不是变成模型提示词。
@@ -59,7 +61,7 @@ ctx.commands.register({
 
 ### 从适配器分派
 
-交互式适配器调用 `execute(agent, line, attachments, signal)`，传入确切的接收 agent、完整命令行与本次提交的有序附件。它返回已结算的 `CommandExecution`——规范化结果加生命周期配对 `commandId`——语法无效或名称未知时返回 `undefined`。`list(agent)` 与 `find(agent, name)` 在应用 agent 作用域遮蔽后用于命令发现。
+交互式适配器调用 `execute(agent, line, attachments, signal)`，传入确切的接收 agent、完整命令行与本次提交的有序附件。它返回已结算的 `CommandExecution`——规范化结果加生命周期配对 `commandId`——语法无效或名称未知时返回 `undefined`。`list(agent)` 在应用 agent 作用域遮蔽后展示可发现的命令；`find(agent, name)` 解析当前生效的定义，包括隐藏命令。
 
 无状态入口 `@deepseek-ai/dsh-commands/builtin` 为 Host 和 Client 适配器共享第一方身份、中英文输入 token 及描述符解析。`builtinCommandName()` 根据定义识别能力，不依赖注册名；`resolveCommand()` 保留精确名称优先级，并按定义 ID 解析别名。支持范围由适配器决定，注册器本身仍接受任意定义。
 
@@ -68,6 +70,8 @@ ctx.commands.register({
 调用方的中止信号会让注册表停止等待处理器；无视信号的处理器可能在调用方停止等待后继续产生自身的外部副作用。被取消或抛异常的处理器在日志中以 `command/done` 错误结算。
 
 -----
+
+`conversation: true` 将命令标记为需要保留的对话活动，`command/run` 持久化该标记。即使没有模型轮次，Session 列表仍显示该对话，新建会话也不会复用它。省略或设为 false 时保留配置命令的原有行为；该元数据不会触发模型请求或授予执行权限。
 
 <a id="understand-the-implementation"></a>
 ## 理解实现

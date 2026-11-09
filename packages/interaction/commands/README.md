@@ -45,6 +45,8 @@ ctx.commands.register({
 
 The handler returns `success` or `error` plus optional UI text that the adapter renders. `recordInput` defaults to true; a command whose own authoritative domain event already carries the payload sets it to false so the session log does not duplicate the input. Registering the same name twice in one scope throws.
 
+`hidden: true` omits an internal command from `list(agent)` after scoped shadowing. `find(agent, name)` and explicit execution still resolve it; discovery visibility is not an access control. Omitted or false keeps the command discoverable.
+
 ### Command syntax
 
 A command line starts with a slash at byte zero, a lowercase name containing letters, digits, `_` or `-`, and then either end-of-input or whitespace. Everything after the name — including separator whitespace — is the command's `rawInput`, and the command owns its own grammar for it. Lines that are not syntactically a command, or that name an unknown command, are rejected by the adapter instead of becoming a model prompt.
@@ -59,7 +61,7 @@ A command may declare `input.attachments` to accept composer images and generic 
 
 ### Dispatching from an adapter
 
-An interactive adapter calls `execute(agent, line, attachments, signal)` with the exact receiving agent, the full command line, and the submission's ordered attachments. It returns the settled `CommandExecution` — the normalized result plus its lifecycle `commandId` — or `undefined` for invalid syntax or an unknown name. `list(agent)` and `find(agent, name)` serve discovery after agent-scoped shadowing.
+An interactive adapter calls `execute(agent, line, attachments, signal)` with the exact receiving agent, the full command line, and the submission's ordered attachments. It returns the settled `CommandExecution` — the normalized result plus its lifecycle `commandId` — or `undefined` for invalid syntax or an unknown name. `list(agent)` advertises discoverable commands after agent-scoped shadowing; `find(agent, name)` resolves the effective definition, including hidden commands.
 
 The stateless `@deepseek-ai/dsh-commands/builtin` entry shares first-party identity, English/Chinese input tokens, and descriptor resolution across Host and Client adapters. `builtinCommandName()` identifies the definition independently of its registered name; `resolveCommand()` preserves exact-name priority and follows aliases by definition ID. Adapters choose their supported subset; the registry itself continues to accept arbitrary definitions.
 
@@ -68,6 +70,8 @@ The stateless `@deepseek-ai/dsh-commands/builtin` entry shares first-party ident
 The caller's abort signal stops the registry from awaiting a handler; a handler that ignores the signal may continue its own external side effects after the caller stops waiting. A cancelled or thrown handler settles as a `command/done` error in the log.
 
 -----
+
+`conversation: true` opts a command into durable conversation activity. Its `command/run` record retains that flag, so Session lists keep the chat visible and New Session does not reuse it, even without a model turn. Omitted or false retains configuration-command behavior. This metadata schedules no model request and grants no execution rights.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation

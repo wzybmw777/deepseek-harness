@@ -26,6 +26,7 @@ interface Harness {
 }
 
 interface HarnessOptions {
+  readonly publicPathPrefix?: string
   readonly verification?: boolean
   readonly remoteBrowser?: RemoteBrowserService
 }
@@ -57,9 +58,10 @@ async function startHarness(options: HarnessOptions = {}): Promise<Harness> {
     delivery: { send: async (message) => { verificationMessages.push(message) } },
   })
   const api = await EnterpriseApi.create({
+    ...(options.publicPathPrefix === undefined ? {} : { publicPathPrefix: options.publicPathPrefix }),
     store: opened.store,
     resources: new TeamResources(tenantRoot),
-    tenantPath: team => `/t/${team.slug}/harness/`,
+    tenantPath: team => `${options.publicPathPrefix ?? ''}/t/${team.slug}/harness/`,
     prepareTenant: async (team) => { preparedTeams.push(team.id) },
     plugins,
     ...(options.verification === false ? {} : { verification }),
@@ -164,6 +166,27 @@ afterEach(async () => {
 })
 
 describe('enterprise authentication and Harness gate', { concurrent: false }, () => {
+  it('isolates subpath cookies and launch links from the origin-root deployment', async () => {
+    harness = await startHarness({ publicPathPrefix: '/preview' })
+    const guest = await fetch(`${harness.base}/enterprise/api/harness/launch`, { redirect: 'manual' })
+    expect(guest.headers.get('location')).toBe('/preview/enterprise/login?next=%2Fpreview%2Fenterprise%2Fworkspace')
+    const login = await fetch(`${harness.base}/enterprise/api/login`, {
+      method: 'POST', headers: { 'content-type': 'application/json', origin: harness.base },
+      body: JSON.stringify({ identifier: 'owner@example.com', password: harness.password }),
+    })
+    expect(login.status).toBe(200)
+    const cookie = login.headers.get('set-cookie') ?? ''
+    expect(cookie).toMatch(/^dsh_enterprise_session_[a-f0-9]{12}=/u)
+    expect(cookie).toContain('Path=/preview/')
+    const rootCookie = cookie.replace(/^dsh_enterprise_session_[a-f0-9]{12}=/u, 'dsh_enterprise_session=')
+    const rejected = await fetch(`${harness.base}/enterprise/api/session`, { headers: { cookie: rootCookie.split(';')[0] ?? '' } })
+    expect(rejected.status).toBe(401)
+    const launch = await fetch(`${harness.base}/enterprise/api/harness/launch`, {
+      headers: { cookie: cookie.split(';')[0] ?? '' }, redirect: 'manual',
+    })
+    expect(launch.headers.get('location')).toBe('/preview/t/default/harness/')
+  })
+
   it('redirects unauthenticated workspace launches to login without creating a session', async () => {
     harness = await startHarness()
 
@@ -1065,7 +1088,6 @@ describe('enterprise authentication and Harness gate', { concurrent: false }, ()
     })
     expect(uploaded.response.status).toBe(201)
     expect(uploaded.body).toMatchObject({ name: 'notes.txt', path: 'notes.txt', kind: 'file', size: 10 })
-
     const listing = await call('/resources/files', { cookie: owner.cookie })
     expect(listing.response.status).toBe(200)
     expect(listing.body).toMatchObject({
@@ -1096,6 +1118,13 @@ describe('enterprise authentication and Harness gate', { concurrent: false }, ()
       body: { path: 'docs' },
     })
     expect(folder.response.status).toBe(201)
+    const location = await call('/resources/projects/location?path=docs', { cookie: owner.cookie })
+    expect(location.response.status).toBe(200)
+    expect(location.body).toMatchObject({
+      path: expect.stringMatching(/\/team-default\/documents\/deepseek-harness\/default-workspace\/docs$/u),
+    })
+    expect((await call('/resources/projects/location?path=docs')).response.status).toBe(401)
+    expect((await call('/resources/projects/location?path=..%2Fother-team', { cookie: owner.cookie })).response.status).toBe(400)
     const renamed = await call('/resources/files', {
       method: 'PATCH',
       cookie: owner.cookie,

@@ -19,6 +19,7 @@ kind: "package-reference"
 - [团队资源](#team-resources)
 - [远程浏览器](#remote-browser)
 - [套餐与额度](#billing-and-quota)
+- [精选智能体与积分](#curated-agents-and-points)
 - [模型体验](#model-experience)
 - [已知限制与延期工作](#known-limitations-and-deferred-work)
 - [开发备注](#dev-note)
@@ -53,7 +54,7 @@ pnpm dsh web --patch packages/experimental/enterprise-console/cordis.patch.yml
 - `tenantContainerImage` / `tenantContainerPodman` —— rootless 镜像与 Podman 可执行文件。
 - `tenantContainerMemoryMb` / `tenantContainerPids` —— 每个容器的硬内存和 PID 上限。
 - `tenantPortStart` / `tenantPortEnd` —— 分配给租户容器的本地回环端口范围。
-- `maxTenantProcesses`、`tenantIdleTimeoutMinutes`、`tenantStartTimeoutMs` —— 容器容量与生命周期限制。
+- `maxTenantProcesses`、`tenantIdleTimeoutMinutes`、`tenantStartTimeoutMs` —— 容器容量与生命周期限制。启动超时同时约束每条 Podman 准备命令；平台检查失败后，下次启动请求可以重新检查。
 - `browserChromePath` / `browserXvfbPath` —— 企业宿主上的有头 Chromium 与 Xvfb 可执行文件。
 - `browserProxyUrl` / `browserProxyBypass` —— 可选的 Chromium 代理与绕过列表。
 - `browserMaxSessions` / `browserMaxSessionsPerUser` / `browserIdleTimeoutMinutes` —— 远程浏览器容量与空闲回收。
@@ -80,6 +81,8 @@ DSH 启动令牌只在 Host 进程内部交换。租户 Cookie 和启动令牌�
 <a id="team-resources"></a>
 ## 团队资源
 
+资源分组挂载在侧栏的面板导航内部，展开与收起时均为资源行保留空间，再排列下方的项目列表。
+
 租户侧栏的资源分组会在当前 Harness 工作台内打开[团队资源面板](../client-ui-enterprise-resources/README.zh.md)。选择文件、知识库或技能时，URL 保持在 `/t/<团队标识>/harness/` 下并切换主面板，不会跳转到 `/enterprise/resources/*` 管理页面或外部服务。具备 `workspace.use` 的团队成员都可以浏览团队共享资源；写操作额外要求 `workspace.resources.write`，所有者角色默认拥有该权限，成员看到相同的文件、知识和技能但没有修改入口。租户资源面板从登录用户解析团队；`/enterprise/resources/*` 管理页面仅向拥有 `teams.read` 的角色显示团队选择器，并发送所选团队的 `teamId`。API 会拒绝依赖未分配或已停用自有团队的请求，拒绝缺少 `teams.read` 的跨团队访问，并在每个写操作中校验浏览器来源。
 
 文件根目录是 `<tenantRoot>/<team-id>/documents/deepseek-harness/default-workspace`，即该团队 Harness 进程使用的默认工作区。控制台支持目录导航、新建目录、上传、文本预览与编辑、重命名、删除和流式下载。单次上传上限为 20 MiB；在线编辑上限为 2 MiB，并且必须是严格 UTF-8 文本。隐藏路径、绝对路径、`..`、符号链接和非普通文件都会被拒绝。Linux 上每次目录遍历都通过 `/proc/self/fd`、已打开的目录描述符和 `O_NOFOLLOW` 固定路径，避免检查后替换。
@@ -102,14 +105,25 @@ DSH 启动令牌只在 Host 进程内部交换。租户 Cookie 和启动令牌�
 <a id="billing-and-quota"></a>
 ## 套餐与额度
 
-团队共享当前套餐按 UTC 自然月计算的 `monthlyCredits`。拥有 `billing.purchase` 的所有者可以在 `/enterprise/billing` 购买或续费套餐；存在待确认订单时不能再次下单，由拥有 `orders.write` 的管理员确认或拒绝。工作台侧栏显示团队剩余额度和当前成员用量，并可跳到该页面。
+团队共享当前套餐按 UTC 自然月计算的 `monthlyCredits`。拥有 `billing.purchase` 的所有者可以在 `/enterprise/billing` 购买或续费套餐；存在待确认订单时不能再次下单，由拥有 `orders.write` 的管理员确认或拒绝。工作台显示套餐和已用百分比，并可跳到该页面；绝对 Token 数量留在管理界面。普通输入区隐藏新任务模式、模型与权限选择器，实际行为仍由服务端已有默认值和授权控制。
 
 租户浏览器插件在每轮完成后把模型服务返回的 Token 用量提交到 `POST /enterprise/api/billing/usage`；服务端按 `sessionId` 与 `turn` 只记录一次 `inputTokens + outputTokens`。计量在浏览器执行，因此页面关闭期间完成的轮次不会计量，额度耗尽目前也不会阻断模型请求。
+
+<a id="curated-agents-and-points"></a>
+## 精选智能体与积分
+
+`/enterprise/agents` 展示已发布智能体、成员使用权、积分与任务；`/enterprise/admin/agents` 要求 `settings.write`，管理提示词、Skill 说明、模型、执行器、价格、时长、发布、成员消费权限及用量核对。草稿可以先保存再选择模型；发布要求已配置费率且执行器就绪。管理员显式分配每位成员的钱包与权限，加入团队本身不会共享余额或智能体权益。
+
+独立的 `<dataDir>/product.sqlite` 保存整数微积分、购买、授权、任务、完整且去除凭据的模型请求、用量结算及加密飞链绑定。备份时同时保留 `credential.key` 与 `<dataDir>/product-jobs`。购买标识保证幂等扣费；30 天按购买成功后连续 30 个 24 小时计算，并支持自定义时长与永久权益。解锁购买使用权，每次运行仍单独消耗积分。输入／输出费率以模型服务返回的每百万 Token 对应整数积分配置。服务端在请求前预留上下文预算、冻结费率并一次结算实际用量；中断或缺少用量的请求保留预留积分，等待管理员核对。原有 Harness 聊天仍走独立的浏览器上报额度链路。
+
+`productPptSkillRoot`／`DSH_PRODUCT_PPT_SKILL_ROOT` 指向经核验的 PPT Master 安装，`productPython`／`DSH_PRODUCT_PYTHON` 指向配套 Python 环境。模型与导出超时默认 240000／180000 毫秒，输出上限 12000 Token，并发为 2（`productModelTimeoutMs`、`productExportTimeoutMs`、`productMaxOutputTokens`、`productConcurrency`；对应 `DSH_PRODUCT_*` 变量见 overlay）。用户明确选择基于所给材料快速制作 3–6 页 SVG，再导出原生可编辑 PPTX；此流程没有外部研究、图片或备注。PPT Master 执行最终质量与导出检查，下载校验任务所有者。支持文本执行，视频执行器尚待接入；初始数据未设置商业售价或用量费率。
+
+`/enterprise/feilian` 一次验证用户的飞链密码，换取加密保存的受限插件密钥；密码与高权限成员令牌均不保存。通过飞链现有 API 获取实时知识库权限并检索指定知识库，解绑先撤销密钥。`productFeilianBaseUrl`／`DSH_PRODUCT_FEILIAN_BASE_URL` 指向独立 API；可选 `productFeilianRegistrationUrl`、`productFeilianEnterpriseUrl` 展示公开入口，`productFeilianTimeoutMs` 默认 120000 毫秒，对应环境变量见 overlay。两侧数据库、密码、套餐和计费独立。企业自动开通、在线支付、个人分层套餐及普通聊天强制积分计费仍待后续实施。
 
 <a id="model-experience"></a>
 ## 模型体验
 
-间接依赖现有的 `skill-filesystem` 技能目录和 `skill` 工具；它们向模型提供用户技能与 `team-knowledge`，知识参考文件仍是普通工作区文件，本插件没有增加提示词、工具或 Session 事件。
+间接依赖现有的 `skill-filesystem` 技能目录和 `skill` 工具；它们向模型提供用户技能与 `team-knowledge`，知识参考文件仍是普通工作区文件，普通资源面板没有增加提示词、工具或 Session 事件。产品任务另外发送后台配置的提示词、Skill 和用户材料，其完整请求与模型报告用量持久保存在产品请求记录中，独立于 Harness Session。
 
 #### KV Cache 影响
 
@@ -137,3 +151,9 @@ DSH 启动令牌只在 Host 进程内部交换。租户 Cookie 和启动令牌�
 无。
 
 </details>
+
+## 反向代理子路径
+
+设置 `DSH_ENTERPRISE_PATH_PREFIX=/preview`（插件配置 `publicPathPrefix`），并使用相同变量构建企业前端。入口代理须在转发 HTTP 和 WebSocket 请求前剥离此前缀。默认前缀为空；已配置前缀由斜杠分隔的字母、数字、下划线或连字符组成，末尾不带斜杠。公开链接、租户资源地址、会话 Cookie 名称与路径、退出通知通道均限定在此挂载路径。`DSH_ENTERPRISE_PUBLIC_ORIGIN` 仅填写 HTTPS 源地址，不包含路径。子路径仍与主站共享浏览器源，并非浏览器源层面的隔离。
+
+工作台中的智能体市场与精简套餐／积分摘要现在在当前客户端文档内打开，仅显式的管理详情链接打开新标签。新建项目通过 `/resources/projects/location` 解析已认证团队的沙箱目录，不接收任意主机路径。网页预览使用服务器目录，桌面端保留原生本地目录选择器。

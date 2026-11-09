@@ -12,6 +12,7 @@ import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionSeq } from '@de
 import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace'
+import { CommandId } from '@deepseek-ai/dsh-commands/brand'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSessionTestRemote, testSessionPersistence } from './test-remote.ts'
 
@@ -240,6 +241,18 @@ describe('session.create Agent preset identity', () => {
 })
 
 describe('session.create reuse of a live blank Session', () => {
+  it('creates a new chat instead of reusing command-only conversation history', async () => {
+    const { ctx, remote } = await harness({ presets: ['standard'] })
+    const id = SessionId('external-talk')
+    await remote.create({ sessionId: id })
+    ctx.sessions.get(id)?.append('command/run', {
+      commandId: CommandId('external-activity'), name: 'external-task', source: { kind: 'user' }, conversation: true,
+    })
+    const created = await remote.create({ sessionId: id })
+    if (!created.ok) throw new Error('create failed')
+    expect(created.value.sessionId).not.toBe(id)
+    expect(ctx.sessions.get(id)?.snapshotEvents().some(event => event.type === 'turn/start')).toBe(false)
+  })
   it('recomposes a blank Session under the default when the caller names no preset', async () => {
     const { remote, selections, presetOf } = await harness({ presets: ['standard', 'minimal'] })
     await remote.create({ sessionId: SessionId('draft'), agentPreset: 'minimal' })
@@ -450,6 +463,24 @@ describe('session.create reuse of a live blank Session', () => {
 })
 
 describe('session.create reuse of a stored blank Session', () => {
+  it.each(['stored', 'written-since-observation'])('preserves %s command-only history', async (placement) => {
+    const talk = SessionId(`command-${placement}`)
+    const cwd = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-command-history-')))
+    tempDirs.push(cwd)
+    const activity: SessionEvent[] = [{
+      type: 'command/run', seq: SessionSeq(0), time: 1,
+      data: { commandId: CommandId('stored-activity'), name: 'external-task', source: { kind: 'user' }, conversation: true },
+    }]
+    const { remote, resumed } = await harness({
+      presets: ['standard'],
+      stored: new Map([[talk, { header: storedHeader(talk, cwd), events: placement === 'stored' ? activity : [] }]]),
+      writtenSinceObservation: new Map([[talk, placement === 'stored' ? [] : activity]]),
+    })
+    const created = await remote.create({ sessionId: talk, cwd })
+    if (!created.ok) throw new Error('create failed')
+    expect(created.value.sessionId).not.toBe(talk)
+    if (placement === 'stored') expect(resumed).toEqual([])
+  })
   it('resumes a blank Session whose recorded preset is no longer declared under the default', async () => {
     const draft = SessionId('stale-draft')
     const cwd = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-session-preset-stored-')))

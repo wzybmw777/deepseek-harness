@@ -1,10 +1,14 @@
 /** Dictionaries for the team files, knowledge, and skills pages. */
 
+import { productEn, productZh } from './product-locales.ts'
+
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'enterpriseResources'
 
 /** Simplified Chinese dictionary, the key-set source of truth. */
 export const zh = {
+  ...productZh,
+  'knowledge.feilian': '飞链知识库',
   'common.cancel': '取消',
   'common.close': '关闭',
   'common.delete': '删除',
@@ -126,6 +130,8 @@ export const zh = {
 
 /** English dictionary checked complete against the Chinese key set. */
 export const en: { readonly [K in keyof typeof zh]: string } = {
+  ...productEn,
+  'knowledge.feilian': 'Feilian knowledge',
   'common.cancel': 'Cancel',
   'common.close': 'Close',
   'common.delete': 'Delete',
@@ -247,6 +253,8 @@ export const en: { readonly [K in keyof typeof zh]: string } = {
 
 /** Japanese dictionary, checked against the English keys. */
 export const ja: Record<keyof typeof en, string> = {
+  ...productEn,
+  'knowledge.feilian': 'Feilian ナレッジ',
   'common.cancel': 'キャンセル',
   'common.close': '閉じる',
   'common.delete': '削除',
@@ -368,6 +376,8 @@ export const ja: Record<keyof typeof en, string> = {
 
 /** Spanish dictionary, checked against the English keys. */
 export const es: Record<keyof typeof en, string> = {
+  ...productEn,
+  'knowledge.feilian': 'Conocimiento de Feilian',
   'common.cancel': 'Cancelar',
   'common.close': 'Cerrar',
   'common.delete': 'Eliminar',
@@ -489,6 +499,8 @@ export const es: Record<keyof typeof en, string> = {
 
 /** French dictionary, checked against the English keys. */
 export const fr: Record<keyof typeof en, string> = {
+  ...productEn,
+  'knowledge.feilian': 'Connaissances Feilian',
   'common.cancel': 'Annuler',
   'common.close': 'Fermer',
   'common.delete': 'Supprimer',
@@ -610,6 +622,8 @@ export const fr: Record<keyof typeof en, string> = {
 
 /** German dictionary, checked against the English keys. */
 export const de: Record<keyof typeof en, string> = {
+  ...productEn,
+  'knowledge.feilian': 'Feilian-Wissen',
   'common.cancel': 'Abbrechen',
   'common.close': 'Schließen',
   'common.delete': 'Löschen',
@@ -731,6 +745,8 @@ export const de: Record<keyof typeof en, string> = {
 
 /** Russian dictionary, checked against the English keys. */
 export const ru: Record<keyof typeof en, string> = {
+  ...productEn,
+  'knowledge.feilian': 'База знаний Feilian',
   'common.cancel': 'Отмена',
   'common.close': 'Закрыть',
   'common.delete': 'Удалить',
@@ -852,6 +868,8 @@ export const ru: Record<keyof typeof en, string> = {
 
 /** Portuguese dictionary, checked against the English keys. */
 export const pt: Record<keyof typeof en, string> = {
+  ...productEn,
+  'knowledge.feilian': 'Conhecimento Feilian',
   'common.cancel': 'Cancelar',
   'common.close': 'Fechar',
   'common.delete': 'Excluir',

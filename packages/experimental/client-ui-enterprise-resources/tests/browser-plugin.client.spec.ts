@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 
+import { webcrypto } from 'node:crypto'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ILayout, MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
+import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -14,6 +18,8 @@ import {
 } from '../src/client/index.ts'
 import { NS } from '../src/client/locales.ts'
 import { apply as applyHost } from '../src/index.ts'
+import { openProductConversation } from '../src/client/mentions.ts'
+import { workbenchProducts } from '../src/client/product-api.ts'
 
 const runtimes = new Set<SlotTestRuntime>()
 
@@ -23,6 +29,9 @@ afterEach(async () => {
   } finally {
     runtimes.clear()
     cleanup()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    sessionStorage.clear()
   }
 })
 
@@ -46,12 +55,30 @@ async function bench() {
     closeRightbar: vi.fn(),
   } satisfies ILayout
   runtime.ctx.provide('layout', layout)
+  const sources: InputTriggerSource[] = []
+  runtime.ctx.provide('inputTriggers', {
+    registerSource: (source: InputTriggerSource) => { sources.push(source); return vi.fn() }, sessionOf: vi.fn(),
+  } as never)
+  const initializeDraft = vi.fn((binding: SessionBinding) => {
+    expect(runtime.sessions.binding(binding.sessionId)).toBe(binding)
+    return 'applied' as const
+  })
+  runtime.ctx.provide('conversation', { input: {
+    requestDraftInitialization: initializeDraft,
+    for: () => ({ state: { getSnapshot: () => ({ occurrences: [] }) } }),
+  } } as never)
+  const openSession = vi.fn()
+  runtime.ctx.provide('uiWorkspace', { openSession } as never)
+  const workspace = await runtime.workspaces.create({ path: '/market-project' })
+  await runtime.workspaces.update((state) => { state.items = [workspace] })
+  const execute = vi.fn(async () => ({ ok: true, value: { result: { kind: 'success' } } }))
+  runtime.remote.provideNamespaces({ commands: { execute } })
   runtime.ctx.slots.register({
     name: 'root',
     children: { main: { kind: 'keyed', scope: 'root' } },
   } as never, () => null)
   const mounted = await runtime.mount({ inject: [...inject], apply })
-  return { runtime, locale, selectPanel, mounted }
+  return { runtime, locale, selectPanel, mounted, sources, initializeDraft, openSession, execute, workspace }
 }
 
 describe('enterprise resources browser half', () => {
@@ -59,21 +86,85 @@ describe('enterprise resources browser half', () => {
     expect(applyHost).not.toThrow()
   })
 
-  it('declares the four workbench services it binds', () => {
-    expect(inject).toEqual(['slots', 'locale', 'layout', 'sessions'])
+  it('declares the workbench and native composer services it binds', () => {
+    expect(inject).toEqual([
+      'slots', 'locale', 'layout', 'sessions', 'conversation', 'inputTriggers', 'uiWorkspace', 'workspaces', 'remote', 'remote.commands',
+    ])
   })
 
-  it('registers the three main panels and both dictionaries', async () => {
+  it('registers resource and marketplace panels with localized copy', async () => {
     const { runtime, locale } = await bench()
     const entries = runtime.ctx.slots.entries('main')
     expect(entries.map(entry => entry.options.key)).toEqual([
       RESOURCE_PANEL_IDS.files,
       RESOURCE_PANEL_IDS.knowledge,
       RESOURCE_PANEL_IDS.skills,
+      RESOURCE_PANEL_IDS.market,
     ])
     expect(locale.bind(NS)('files.title')).toBe('文件')
     expect(locale.bind(NS)('knowledge.title')).toBe('知识库')
     expect(locale.bind(NS)('skills.title')).toBe('技能')
+    expect(locale.bind(NS)('market.title')).toBe('智能体')
+  })
+
+  it('opens the chosen agent with a named retained chat', async () => {
+    const { runtime, initializeDraft, openSession, workspace } = await bench()
+    const rename = vi.fn(async (title: string) => ({ ok: true as const, value: { title, seq: SessionSeq(1) } }))
+    const sessionId = await runtime.sessions.add({ id: 'market-chat', session: { rename } })
+    const create = vi.fn(async () => sessionId)
+    runtime.sessions.stubCreate(create)
+    await openProductConversation(runtime.ctx, { kind: 'agent', id: 'copy', title: '文案助手' })
+    expect(create).toHaveBeenCalledWith({ workspaceId: workspace.workspaceId })
+    expect(rename).toHaveBeenCalledWith('文案助手')
+    expect(initializeDraft).toHaveBeenCalledWith(expect.objectContaining({ sessionId }), {
+      prompt: '@文案助手 ', whenDraftExists: 'keep',
+    })
+    expect(openSession).toHaveBeenCalledWith(sessionId)
+  })
+
+  it('prepares the default project before creating a marketplace chat on first use', async () => {
+    const { runtime, workspace } = await bench()
+    await runtime.workspaces.update((state) => { state.items = [] })
+    runtime.workspaces.stub('initializeDefault', async () => workspace)
+    const sessionId = await runtime.sessions.add({
+      id: 'first-use-chat',
+      session: { rename: async title => ({ ok: true as const, value: { title, seq: SessionSeq(1) } }) },
+    })
+    const create = vi.fn(async () => sessionId)
+    runtime.sessions.stubCreate(create)
+    await openProductConversation(runtime.ctx, { kind: 'agent', id: 'copy', title: '文案助手' })
+    expect(runtime.workspaces.calls.at(-1)?.method).toBe('initializeDefault')
+    expect(create).toHaveBeenCalledWith({ workspaceId: workspace.workspaceId })
+  })
+
+  it('leaves creation and navigation untouched when no project is available', async () => {
+    const { runtime, openSession } = await bench()
+    await runtime.workspaces.update((state) => { state.items = [] })
+    const create = vi.spyOn(runtime.sessions, 'create')
+    await expect(openProductConversation(runtime.ctx, { kind: 'agent', id: 'copy', title: '文案助手' }))
+      .rejects.toThrow('Choose a project')
+    expect(create).not.toHaveBeenCalled()
+    expect(openSession).not.toHaveBeenCalled()
+  })
+
+  it('records an agent interaction through the injected Remote in the mounted plugin', async () => {
+    vi.stubGlobal('crypto', webcrypto)
+    const { runtime, sources, execute } = await bench()
+    const sessionId = await runtime.sessions.add({ id: 'agent-chat' })
+    vi.spyOn(workbenchProducts, 'identity').mockResolvedValue({ user: { id: 'member' }, permissions: ['workspace.use'] })
+    vi.spyOn(workbenchProducts, 'market').mockResolvedValue({ agents: [{
+      id: 'copy', title: '文案助手', description: '', category: '文案', output: 'text', price: 0,
+      durationDays: 30, entitlement: { active: true, expiresAt: null },
+    }], wallet: { balance: 0, reserved: 0, canRun: true, canPurchase: false }, jobs: [] })
+    vi.spyOn(workbenchProducts, 'run').mockResolvedValue({ id: 'job-a' } as never)
+    await runtime.sessions.using(sessionId, { source: 'testOperation' }, async (reference) => {
+      const outcome = await sources[0]!.matchEnter!(
+        { sessionId }, '@文案助手 材料', new AbortController().signal, { attachments: 0 },
+      )
+      if (!outcome || typeof outcome !== 'object' || !('claim' in outcome)) throw new Error('Expected agent selection')
+      expect((await outcome.claim.submit('材料', reference.binding.ctx, [])).kind).toBe('success')
+    })
+    expect(execute).toHaveBeenLastCalledWith(sessionId, '/enterprise-task {"kind":"agent","jobId":"job-a"}', [])
   })
 
   it('opens resource panels in the workbench and publishes the active selection', async () => {
@@ -91,6 +182,9 @@ describe('enterprise resources browser half', () => {
 
       window.dispatchEvent(new window.CustomEvent(RESOURCE_OPEN_EVENT, { detail: 'unknown' }))
       expect(selectPanel).toHaveBeenCalledTimes(1)
+      window.dispatchEvent(new window.CustomEvent(RESOURCE_OPEN_EVENT, { detail: 'market' }))
+      expect(selectPanel).toHaveBeenCalledWith(RESOURCE_PANEL_IDS.market)
+      expect(active.at(-1)).toBe('market')
 
       runtime.panelInfo.set({ activePanelId: null })
       expect(active.at(-1)).toBeNull()

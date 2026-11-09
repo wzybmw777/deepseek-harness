@@ -6,6 +6,7 @@ import type { Duplex } from 'node:stream'
 import type { WebServer } from '@deepseek-ai/dsh-host-webserver'
 import type { EnterpriseRequestSession } from './api.ts'
 import { requestAuthority, requestProtocol, sendError, sendEmpty, sendJson } from './http.ts'
+import { resolvePublicPathPrefix } from './public-path.ts'
 import { ENTERPRISE_BRAND_NAME } from './session-guard.ts'
 import { parseTenantRoute, tenantHarnessPath, type TenantRoute } from './tenant-paths.ts'
 import type { TenantRuntimeLease } from './tenant-runtime.ts'
@@ -17,13 +18,14 @@ const HOP_BY_HOP = new Set([
   'connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'te', 'trailer',
 ])
 const MAX_INJECTED_HTML_BYTES = 8 * 1024 * 1024
-const SESSION_GUARD_TAG = '<script src="/enterprise/session-guard.js" data-dsh-tenant-guard=""></script>'
 const PLUGIN_READS = new Set([
   'listBundles', 'listPlugins', 'listVersionExemptions', 'readBundleDetail',
 ])
 const MAX_REJECTED_RPC_BYTES = 64 * 1024
 
 interface TenantGatewayDependencies {
+  /** Public proxy prefix; omitted preserves origin-root URLs. */
+  readonly publicPathPrefix?: string
   readonly store: Pick<EnterpriseStore, 'snapshot'>
   readonly runtime: { ensureTenant(team: TeamRecord): Promise<TenantRuntimeLease> }
   readonly authenticate: (request: IncomingMessage) => EnterpriseRequestSession | undefined
@@ -50,7 +52,9 @@ function internalOrigin(port: number): string {
   return `http://127.0.0.1:${String(port)}`
 }
 
-function forwardingHeaders(request: IncomingMessage, url: URL, route: TenantRoute, port: number, cookie: string): OutgoingHttpHeaders {
+function forwardingHeaders(
+  request: IncomingMessage, url: URL, route: TenantRoute, port: number, cookie: string, publicPathPrefix: string,
+): OutgoingHttpHeaders {
   const headers: OutgoingHttpHeaders = {}
   for (const [name, value] of Object.entries(request.headers)) {
     if (value === undefined || HOP_BY_HOP.has(name) || name === 'host' || name === 'cookie' || name === 'origin'
@@ -62,12 +66,12 @@ function forwardingHeaders(request: IncomingMessage, url: URL, route: TenantRout
   if (request.headers.origin !== undefined) headers.origin = internalOrigin(port)
   headers['x-forwarded-host'] = request.headers.host ?? requestAuthority(request) ?? ''
   headers['x-forwarded-proto'] = requestProtocol(request)
-  headers['x-forwarded-prefix'] = route.mount.slice(0, -1)
-  headers['x-forwarded-uri'] = `${url.pathname}${url.search}`
+  headers['x-forwarded-prefix'] = `${publicPathPrefix}${route.mount.slice(0, -1)}`
+  headers['x-forwarded-uri'] = `${publicPathPrefix}${url.pathname}${url.search}`
   return headers
 }
 
-function responseHeaders(source: IncomingMessage['headers'], route: TenantRoute): OutgoingHttpHeaders {
+function responseHeaders(source: IncomingMessage['headers'], route: TenantRoute, publicPathPrefix: string): OutgoingHttpHeaders {
   const headers: OutgoingHttpHeaders = {}
   for (const [name, value] of Object.entries(source)) {
     if (value === undefined || HOP_BY_HOP.has(name) || name === 'set-cookie') continue
@@ -78,26 +82,30 @@ function responseHeaders(source: IncomingMessage['headers'], route: TenantRoute)
     && !location.startsWith('/t/') && !location.startsWith('/enterprise/')) {
     headers.location = `${route.mount.slice(0, -1)}${location}`
   }
+  if (typeof headers.location === 'string' && headers.location.startsWith('/') && !headers.location.startsWith('//')) {
+    headers.location = `${publicPathPrefix}${headers.location}`
+  }
   headers['x-content-type-options'] = 'nosniff'
   headers['referrer-policy'] = 'no-referrer'
   return headers
 }
 
-function injectSessionGuard(html: string): string {
+function injectSessionGuard(html: string, publicPathPrefix: string): string {
+  const tag = `<script src="${publicPathPrefix}/enterprise/session-guard.js" data-dsh-tenant-guard=""></script>`
   let guarded = html.replace(/<title\b[^>]*>[\s\S]*?<\/title>/iu, `<title>${ENTERPRISE_BRAND_NAME}</title>`)
   if (!/<html\b[^>]*\bdata-dsh-enterprise(?:\s*=|\s|>)/iu.test(guarded)) {
     guarded = guarded.replace(/<html(?=[\s>])/iu, match => `${match} data-dsh-enterprise=""`)
   }
   if (guarded.includes('/enterprise/session-guard.js')) return guarded
   const body = guarded.lastIndexOf('</body>')
-  return body === -1 ? `${guarded}${SESSION_GUARD_TAG}` : `${guarded.slice(0, body)}${SESSION_GUARD_TAG}${guarded.slice(body)}`
+  return body === -1 ? `${guarded}${tag}` : `${guarded.slice(0, body)}${tag}${guarded.slice(body)}`
 }
 
-function loginRedirect(response: ServerResponse, url: URL): void {
-  const next = `${url.pathname}${url.search}`
+function loginRedirect(response: ServerResponse, url: URL, publicPathPrefix: string): void {
+  const next = `${publicPathPrefix}${url.pathname}${url.search}`
   response.writeHead(302, {
     'cache-control': 'no-store',
-    location: `/enterprise/login?next=${encodeURIComponent(next)}`,
+    location: `${publicPathPrefix}/enterprise/login?next=${encodeURIComponent(next)}`,
     'referrer-policy': 'no-referrer',
   })
   response.end()
@@ -165,7 +173,11 @@ export class TenantGateway {
   private readonly upgradeRoutes = new Map<string, { slug: string; dispose: () => void }>()
   private closed = false
 
-  constructor(private readonly dependencies: TenantGatewayDependencies) {}
+  private readonly publicPathPrefix: string
+
+  constructor(private readonly dependencies: TenantGatewayDependencies) {
+    this.publicPathPrefix = resolvePublicPathPrefix(dependencies.publicPathPrefix ?? '')
+  }
 
   /**
    * Start the team process and register its WebSocket route.
@@ -191,13 +203,13 @@ export class TenantGateway {
       return
     }
     if (url.pathname === route.mount.slice(0, -1)) {
-      response.writeHead(308, { location: `${route.mount}${url.search}`, 'cache-control': 'no-store' })
+      response.writeHead(308, { location: `${this.publicPathPrefix}${route.mount}${url.search}`, 'cache-control': 'no-store' })
       response.end()
       return
     }
     const access = await this.resolveAccess(request, route)
     if (access === null) {
-      if (request.method === 'GET' || request.method === 'HEAD') loginRedirect(response, url)
+      if (request.method === 'GET' || request.method === 'HEAD') loginRedirect(response, url, this.publicPathPrefix)
       else sendEmpty(response, 401, { 'cache-control': 'no-store' })
       return
     }
@@ -255,7 +267,7 @@ export class TenantGateway {
     socket.once('error', close)
     upstream.once('error', close)
     upstream.once('connect', () => {
-      const headers = forwardingHeaders(request, url, route, access.lease.port, access.lease.cookie)
+      const headers = forwardingHeaders(request, url, route, access.lease.port, access.lease.cookie, this.publicPathPrefix)
       upstream.write(`GET ${route.upstreamPath}${url.search} HTTP/1.1\r\n`)
       for (const [name, value] of Object.entries(headers)) {
         for (const item of Array.isArray(value) ? value : value === undefined ? [] : [String(value)]) {
@@ -336,7 +348,7 @@ export class TenantGateway {
     lease: TenantRuntimeLease,
   ): void {
     const indexRequest = route.upstreamPath === '/' || route.upstreamPath === '/index.html'
-    const headers = forwardingHeaders(request, url, route, lease.port, lease.cookie)
+    const headers = forwardingHeaders(request, url, route, lease.port, lease.cookie, this.publicPathPrefix)
     if (indexRequest) headers['accept-encoding'] = 'identity'
     const upstream = httpRequest({
       host: '127.0.0.1',
@@ -346,7 +358,7 @@ export class TenantGateway {
       headers,
       agent: false,
     }, (result) => {
-      const outgoing = responseHeaders(result.headers, route)
+      const outgoing = responseHeaders(result.headers, route, this.publicPathPrefix)
       const contentType = firstHeader(result.headers['content-type'])?.toLowerCase() ?? ''
       const contentEncoding = firstHeader(result.headers['content-encoding'])?.toLowerCase()
       const html = contentType.startsWith('text/html') && (contentEncoding === undefined || contentEncoding === 'identity')
@@ -374,7 +386,7 @@ export class TenantGateway {
           else response.destroy()
           return
         }
-        const body = Buffer.from(injectSessionGuard(Buffer.concat(chunks).toString('utf8')), 'utf8')
+        const body = Buffer.from(injectSessionGuard(Buffer.concat(chunks).toString('utf8'), this.publicPathPrefix), 'utf8')
         response.writeHead(result.statusCode ?? 200, {
           ...outgoing,
           'content-length': String(body.byteLength),

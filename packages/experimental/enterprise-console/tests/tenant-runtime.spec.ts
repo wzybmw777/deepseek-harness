@@ -1,13 +1,33 @@
-import { dirname, resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { dirname, join, resolve } from 'node:path'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { EventEmitter } from 'node:events'
+import { PassThrough } from 'node:stream'
+import { spawn } from 'node:child_process'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   podmanRootlessProbeArgs,
   redactTenantRuntimeText,
   tenantContainerName,
   tenantContainerRunArgs,
   tenantRuntimePatch,
+  TenantRuntimeManager,
   type TenantRuntimeConfig,
 } from '../src/tenant-runtime.ts'
+
+vi.mock('node:child_process', () => ({ spawn: vi.fn() }))
+
+const managers = new Set<TenantRuntimeManager>()
+const directories: string[] = []
+
+afterEach(async () => {
+  for (const manager of managers) await manager.close()
+  managers.clear()
+  for (const directory of directories) await rm(directory, { recursive: true, force: true })
+  directories.length = 0
+  vi.restoreAllMocks()
+  vi.mocked(spawn).mockReset()
+})
 
 const config: TenantRuntimeConfig = {
   root: '/var/lib/dsh-enterprise-tenants',
@@ -28,7 +48,63 @@ const config: TenantRuntimeConfig = {
   containerPids: 512,
 }
 
+async function startupManager(startTimeoutMs = config.startTimeoutMs) {
+  vi.spyOn(process, 'getuid').mockReturnValue(1000)
+  vi.spyOn(process, 'getgid').mockReturnValue(1000)
+  const directory = await mkdtemp(join(tmpdir(), 'dsh-tenant-startup-'))
+  directories.push(directory)
+  const manager = new TenantRuntimeManager({
+    config: { ...config, root: join(directory, 'tenants'), pluginRoot: join(directory, 'plugins'),
+      dshEntry: join(directory, 'missing-entry'), startTimeoutMs },
+    pluginPolicy: () => ({ managedBuiltins: [], enabledBuiltins: [], enterprisePlugins: [] }),
+    logger: { info: vi.fn(), warn: vi.fn() },
+  })
+  managers.add(manager)
+  return manager
+}
+
+describe.skipIf(process.getuid === undefined || process.getgid === undefined)('tenant startup preparation', () => {
+  it('retries the platform check after a temporary Podman failure', async () => {
+    const manager = await startupManager()
+    let attempt = 0
+    vi.mocked(spawn).mockImplementation(() => {
+      const child = Object.assign(new EventEmitter(), {
+        stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn(() => true),
+      })
+      const current = ++attempt
+      queueMicrotask(() => {
+        if (current === 2) child.stdout.emit('data', 'true\n')
+        child.emit('close', current === 1 ? 1 : 0, null)
+      })
+      return child as never
+    })
+    await expect(manager.ensureTenant({ id: 'team-a', slug: 'acme' } as never)).rejects.toThrow('rootless Podman probe failed')
+    await expect(manager.ensureTenant({ id: 'team-a', slug: 'acme' } as never)).rejects.toThrow('required mount source is missing')
+    expect(spawn).toHaveBeenCalledTimes(3)
+    expect(spawn).toHaveBeenNthCalledWith(2, config.podman, podmanRootlessProbeArgs(), { stdio: ['ignore', 'pipe', 'pipe'] })
+  })
+
+  it('bounds preparation commands with the configured startup timeout', async () => {
+    const manager = await startupManager(50)
+    const kill = vi.fn(() => true)
+    vi.mocked(spawn).mockReturnValue(Object.assign(new EventEmitter(), {
+      stdout: new PassThrough(), stderr: new PassThrough(), kill,
+    }) as never)
+    await expect(manager.ensureTenant({ id: 'team-a', slug: 'acme' } as never)).rejects.toThrow('timed out after 50 ms')
+    expect(kill).toHaveBeenCalledWith('SIGKILL')
+  })
+})
+
 describe('tenant container launch contract', () => {
+  it('advertises tenant assets under the configured public subpath', () => {
+    const args = tenantContainerRunArgs({
+      config: { ...config, publicPathPrefix: '/preview' },
+      teamId: 'team-a', slug: 'acme', port: 41_000,
+      containerName: 'dsh-tenant-team-a-0123abcd', uid: 996, gid: 995,
+    })
+    expect(args.at(-1)).toContain('https://dev.echoai.best/preview/t/acme/harness/')
+  })
+
   it('uses rootless Podman with deny-by-default container controls', () => {
     expect(podmanRootlessProbeArgs()).toEqual(['info', '--format', '{{.Host.Security.Rootless}}'])
 
@@ -123,6 +199,8 @@ describe('tenant runtime helpers', () => {
       '  config:',
       '    documentsDirectory: "/var/lib/dsh-enterprise-tenants/team-a/documents"',
       '- insert:',
+      '    - id: enterprise-product-chat',
+      '      name: "/opt/deepseek-harness/packages/experimental/enterprise-console/lib/tenant-product-chat.js"',
       '    - id: enterprise-tenant-tool-policy',
       '      name: "/opt/deepseek-harness/packages/experimental/enterprise-console/lib/tenant-tool-policy.js"',
       '    - id: enterprise-resources-ui',

@@ -1,3 +1,4 @@
+import { internalPath, publicPath } from './public-path.ts'
 import {
   createContext,
   useContext,
@@ -20,21 +21,21 @@ interface NavigateOptions {
 }
 
 const RouterContext = createContext<LocationState>({
-  pathname: window.location.pathname,
+  pathname: internalPath(window.location.pathname),
   search: window.location.search,
   hash: window.location.hash,
 })
 
 function currentLocation(): LocationState {
   return {
-    pathname: window.location.pathname,
+    pathname: internalPath(window.location.pathname),
     search: window.location.search,
     hash: window.location.hash,
   }
 }
 
 export function navigate(to: string, options: NavigateOptions = {}): void {
-  const target = new URL(to, window.location.origin)
+  const target = new URL(publicPath(to), window.location.origin)
   if (target.origin !== window.location.origin) {
     window.location.assign(target.href)
     return
@@ -76,8 +77,9 @@ export function queryValue(search: string, key: string): string | undefined {
 
 export function safeInternalPath(value: string | undefined): string | undefined {
   if (value === undefined || !value.startsWith('/') || value.startsWith('//')) return undefined
-  if (!value.startsWith('/enterprise') && !value.startsWith('/harness')) return undefined
-  return value
+  const path = internalPath(value)
+  if (!/^\/(?:enterprise|harness|t)(?:\/|\?|#|$)/u.test(path)) return undefined
+  return path
 }
 
 interface LinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -93,5 +95,5 @@ export function Link({ to, replace = false, onClick, children, ...rest }: LinkPr
     event.preventDefault()
     navigate(to, { replace })
   }
-  return <a href={to} onClick={handleClick} {...rest}>{children}</a>
+  return <a href={publicPath(to)} onClick={handleClick} {...rest}>{children}</a>
 }

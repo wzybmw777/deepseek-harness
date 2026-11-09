@@ -4,6 +4,16 @@
     - id: enterprise-console
       name: './lib/index.js'
       config:
+        productFeilianBaseUrl: !!js process.env.DSH_PRODUCT_FEILIAN_BASE_URL
+        productFeilianRegistrationUrl: !!js process.env.DSH_PRODUCT_FEILIAN_REGISTRATION_URL
+        productFeilianEnterpriseUrl: !!js process.env.DSH_PRODUCT_FEILIAN_ENTERPRISE_URL
+        productFeilianTimeoutMs: !!js Number(process.env.DSH_PRODUCT_FEILIAN_TIMEOUT_MS ?? 120000)
+        productPptSkillRoot: !!js process.env.DSH_PRODUCT_PPT_SKILL_ROOT
+        productPython: !!js process.env.DSH_PRODUCT_PYTHON ?? 'python3'
+        productModelTimeoutMs: !!js Number(process.env.DSH_PRODUCT_MODEL_TIMEOUT_MS ?? 240000)
+        productExportTimeoutMs: !!js Number(process.env.DSH_PRODUCT_EXPORT_TIMEOUT_MS ?? 180000)
+        productMaxOutputTokens: !!js Number(process.env.DSH_PRODUCT_MAX_OUTPUT_TOKENS ?? 12000)
+        productConcurrency: !!js Number(process.env.DSH_PRODUCT_CONCURRENCY ?? 2)
         distRoot: !!js process.env.DSH_ENTERPRISE_DIST ?? process.getBuiltinModule('node:path').join(process.cwd(), 'apps/enterprise/dist')
         dataDir: !!js process.env.DSH_ENTERPRISE_DATA ?? process.getBuiltinModule('node:path').join(process.cwd(), '.enterprise-data')
         bootstrapAdminEmail: !!js process.env.DSH_ENTERPRISE_ADMIN_EMAIL ?? 'admin@echoai.best'
@@ -14,6 +24,7 @@
         tenantTemplateHome: !!js process.env.DSH_ENTERPRISE_TEMPLATE_HOME ?? process.env.DSH_HOME ?? process.getBuiltinModule('node:path').join(process.env.HOME ?? process.cwd(), '.dsh')
         tenantProfile: !!js process.env.DSH_ENTERPRISE_TENANT_PROFILE ?? 'web'
         tenantPublicOrigin: !!js process.env.DSH_ENTERPRISE_PUBLIC_ORIGIN
+        publicPathPrefix: !!js process.env.DSH_ENTERPRISE_PATH_PREFIX ?? ''
         verificationWebhookUrl: !!js process.env.DSH_ENTERPRISE_VERIFICATION_WEBHOOK_URL
         verificationWebhookToken: !!js process.env.DSH_ENTERPRISE_VERIFICATION_WEBHOOK_TOKEN
         tenantContainerImage: !!js process.env.DSH_ENTERPRISE_TENANT_IMAGE ?? 'localhost/dsh-enterprise-tenant:local'

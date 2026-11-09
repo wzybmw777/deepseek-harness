@@ -58,7 +58,7 @@ function tagsOf(value: string): string[] {
 }
 
 /** Render the team knowledge catalog with real CRUD and generated-skill feedback. */
-export function KnowledgePanel({ t }: ResourcePanelProps): ReactNode {
+export function InternalKnowledgePanel({ t }: ResourcePanelProps): ReactNode {
   const { notice, showSuccess, showError, dismiss } = useResourceNotice()
   const canWrite = useResourceWriteAccess()
   const [articles, setArticles] = useState<KnowledgeSummary[]>([])
@@ -155,9 +155,9 @@ export function KnowledgePanel({ t }: ResourcePanelProps): ReactNode {
 
   return (
     <PageFrame
-      actions={canWrite ? (
+      actions={<>{canWrite ? (
         <PageAction icon={<IconPlusOutlineRegular size={16} />} label={t('knowledge.new')} onClick={openCreate} />
-      ) : undefined}
+      ) : null}</>}
       description={t('knowledge.subtitle')}
       title={t('knowledge.title')}
     >

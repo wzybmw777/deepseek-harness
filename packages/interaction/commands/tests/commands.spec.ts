@@ -54,6 +54,46 @@ describe('parseCommand()', () => {
 })
 
 describe('CommandRuntime', () => {
+  it('omits hidden commands from discovery while retaining explicit execution', async () => {
+    const ctx = await mount()
+    const { agent } = await mintAgentScope(ctx, 'hidden-command')
+    ctx.commands.register({ ...command('internal-task'), hidden: true })
+    ctx.commands.register({ ...command('visible'), hidden: false })
+    expect(ctx.commands.list(agent).map(item => item.name)).toEqual(['visible'])
+    expect(ctx.commands.find(agent, 'internal-task')).toMatchObject({ hidden: true })
+    expect((await ctx.commands.execute(agent, '/internal-task', [], new AbortController().signal))?.result)
+      .toEqual({ kind: 'success', text: 'ran:internal-task' })
+  })
+
+  it('keeps hidden scoped shadows hidden until their scope is disposed', async () => {
+    const ctx = await mount()
+    const { scope, agent } = await mintAgentScope(ctx, 'hidden-shadow')
+    const other = { id: SessionId('other') } as Agent
+    ctx.commands.register(command('shared'))
+    scope.ctx.commands.register({ ...command('shared', 'scoped'), hidden: true })
+    expect(ctx.commands.list(agent)).toEqual([])
+    expect(ctx.commands.list(other).map(item => item.name)).toEqual(['shared'])
+    expect((await ctx.commands.execute(agent, '/shared', [], new AbortController().signal))?.result)
+      .toEqual({ kind: 'success', text: 'scoped' })
+    await scope.dispose()
+    expect(ctx.commands.list(agent).map(item => item.name)).toEqual(['shared'])
+  })
+
+  it('records opted-in conversation activity while leaving ordinary commands unchanged', async () => {
+    const ctx = await mount()
+    const { agent } = await mintAgentScope(ctx, 'external-conversation')
+    ctx.commands.register({ ...command('external-task'), conversation: true })
+    ctx.commands.register(command('configure'))
+    await ctx.commands.execute(agent, '/external-task material', [], new AbortController().signal)
+    await ctx.commands.execute(agent, '/configure', [], new AbortController().signal)
+    const runs = lifecycleOf(agent).filter(event => event.type === 'command/run')
+    expect(runs.map(event => event.data)).toMatchObject([
+      { name: 'external-task', args: ' material', conversation: true },
+      { name: 'configure' },
+    ])
+    expect(runs[1]?.data).not.toHaveProperty('conversation')
+    expect(agent.session.snapshotEvents().some(event => event.type === 'turn/start')).toBe(false)
+  })
   it('lists immutable global descriptors with input metadata', async () => {
     const ctx = await mount()
     const { agent } = await mintAgentScope(ctx, 'a')

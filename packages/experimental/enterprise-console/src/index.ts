@@ -15,10 +15,15 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-web-app'
 import z from '@deepseek-ai/schemastery'
 import { EnterpriseApi } from './api.ts'
+import { ProductApi } from './product-api.ts'
+import { ProductStore } from './product-store.ts'
+import { ProductRuntime } from './product-runtime.ts'
+import { ProductFeilian } from './product-feilian.ts'
+import { resolvePublicPathPrefix } from './public-path.ts'
 import { SharedEnterprisePluginInstaller } from './plugin-installer.ts'
 import { tenantPluginPolicy } from './plugin-policy.ts'
 import { isEmail, normalizeEmail } from './security.ts'
-import { HARNESS_SESSION_GUARD_PATH, HARNESS_SESSION_GUARD_SCRIPT } from './session-guard.ts'
+import { HARNESS_SESSION_GUARD_PATH, createHarnessSessionGuardScript } from './session-guard.ts'
 import { EnterpriseStore } from './store.ts'
 import { TeamResources } from './team-resources.ts'
 import { SECURITY_HEADERS, sendEmpty, sendError } from './http.ts'
@@ -36,6 +41,26 @@ export const inject = ['webServer', 'webApp', 'connection']
 
 /** Enterprise console deployment settings. */
 export interface Config {
+  /** Independent Feilian API origin, reachable from this service. */
+  readonly productFeilianBaseUrl?: string
+  /** Public Feilian registration entry; its account and plan stay independent. */
+  readonly productFeilianRegistrationUrl?: string
+  /** Provisioning portal responsible for checking enterprise eligibility. */
+  readonly productFeilianEnterpriseUrl?: string
+  /** Timeout for Feilian authorization and query requests. */
+  readonly productFeilianTimeoutMs: number
+  /** Installed PPT Master Skill directory; omit to keep PPT products unavailable. */
+  readonly productPptSkillRoot?: string
+  /** Python environment containing the PPT Master exporter dependencies. */
+  readonly productPython: string
+  /** Timeout for a single product model request. */
+  readonly productModelTimeoutMs: number
+  /** Timeout for Skill validation or a complete PPT export. */
+  readonly productExportTimeoutMs: number
+  /** Maximum model output tokens for one product task. */
+  readonly productMaxOutputTokens: number
+  /** Maximum concurrent product tasks in this console process. */
+  readonly productConcurrency: number
   /** Built `apps/enterprise/dist` directory. */
   readonly distRoot: string
   /** Private directory holding users, teams, billing, usage, audit, and keys. */
@@ -56,6 +81,8 @@ export interface Config {
   readonly tenantProfile: string
   /** Browser-facing origin for tenant links, for example `https://app.example.com`. */
   readonly tenantPublicOrigin?: string
+  /** Public reverse-proxy mount; omitted or empty serves the origin root. */
+  readonly publicPathPrefix?: string
   /** HTTPS gateway that delivers verification codes to email or SMS providers. */
   readonly verificationWebhookUrl?: string
   /** Bearer token sent to the verification delivery gateway. */
@@ -76,7 +103,7 @@ export interface Config {
   readonly maxTenantProcesses: number
   /** Stop a tenant process after this many idle minutes. */
   readonly tenantIdleTimeoutMinutes: number
-  /** Maximum time from tenant spawn to ready. */
+  /** Maximum time per container preparation command and from tenant spawn to ready. */
   readonly tenantStartTimeoutMs: number
   /** Headful Chromium executable used by the remote Sidebar Browser. */
   readonly browserChromePath: string
@@ -97,6 +124,16 @@ export interface Config {
 }
 
 export const Config: z<Config> = z.object({
+  productFeilianBaseUrl: z.string(),
+  productFeilianRegistrationUrl: z.string(),
+  productFeilianEnterpriseUrl: z.string(),
+  productFeilianTimeoutMs: z.natural().default(120_000),
+  productPptSkillRoot: z.string(),
+  productPython: z.string().default('python3'),
+  productModelTimeoutMs: z.natural().default(240_000),
+  productExportTimeoutMs: z.natural().default(180_000),
+  productMaxOutputTokens: z.natural().default(12_000),
+  productConcurrency: z.natural().default(2),
   distRoot: z.string().required(),
   dataDir: z.string().required(),
   bootstrapAdminEmail: z.string().required(),
@@ -107,6 +144,7 @@ export const Config: z<Config> = z.object({
   tenantTemplateHome: z.string().required(),
   tenantProfile: z.string().required(),
   tenantPublicOrigin: z.string(),
+  publicPathPrefix: z.string().default(''),
   verificationWebhookUrl: z.string(),
   verificationWebhookToken: z.string(),
   tenantContainerImage: z.string().default('localhost/dsh-enterprise-tenant:local'),
@@ -146,6 +184,9 @@ const MIME: Readonly<Record<string, string>> = {
 }
 
 function assertConfig(config: Config): void {
+  if (!config.productPython.trim() || config.productModelTimeoutMs < 1 || config.productExportTimeoutMs < 1
+    || config.productMaxOutputTokens < 1 || config.productConcurrency < 1 || config.productFeilianTimeoutMs < 1) throw new Error('enterprise-console: product execution settings must be positive and include a Python executable')
+  resolvePublicPathPrefix(config.publicPathPrefix ?? '')
   if (config.distRoot.trim() === '') throw new Error('enterprise-console: distRoot must not be empty')
   if (config.dataDir.trim() === '') throw new Error('enterprise-console: dataDir must not be empty')
   if (!isEmail(normalizeEmail(config.bootstrapAdminEmail))) {
@@ -194,6 +235,7 @@ function resolvePublicOrigin(value: string): string {
 function tenantRuntimeConfig(ctx: Context, config: Config, pluginRoot: string): TenantRuntimeConfig {
   return {
     root: config.tenantRoot,
+    publicPathPrefix: config.publicPathPrefix ?? '',
     publicOrigin: config.tenantPublicOrigin === undefined
       ? new URL(ctx.webApp.getAdvertisedUrl()).origin
       : resolvePublicOrigin(config.tenantPublicOrigin),
@@ -254,7 +296,7 @@ class ConsoleAssets {
   private readonly distRoot: string
   private readonly indexFile: string
 
-  constructor(distRoot: string) {
+  constructor(distRoot: string, private readonly publicPathPrefix: string) {
     this.distRoot = resolve(distRoot)
     this.indexFile = join(this.distRoot, 'index.html')
   }
@@ -266,7 +308,7 @@ class ConsoleAssets {
       return
     }
     if (url.pathname === CONSOLE_ROOT) {
-      redirect(response, `${CONSOLE_ROOT}/${url.search}`)
+      redirect(response, `${this.publicPathPrefix}${CONSOLE_ROOT}/${url.search}`)
       return
     }
     const relativeUrl = url.pathname.slice(CONSOLE_ROOT.length)
@@ -343,6 +385,7 @@ class ConsoleAssets {
  */
 export async function apply(ctx: Context, config: Config): Promise<void> {
   assertConfig(config)
+  const publicPathPrefix = resolvePublicPathPrefix(config.publicPathPrefix ?? '')
   const opened = await EnterpriseStore.open(config.dataDir, normalizeEmail(config.bootstrapAdminEmail), config.brandName)
   const pluginRoot = join(config.dataDir, 'plugins')
   const publicOrigin = config.tenantPublicOrigin === undefined
@@ -373,16 +416,43 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     },
   })
   const gateway = new TenantGateway({
+    publicPathPrefix,
     store: opened.store,
     runtime,
     authenticate: request => api.authenticateRequest(request),
     webServer: ctx.webServer,
     logger: { warn: (error) => { ctx.logger.warn(error) } },
   })
+  let products: ProductStore | undefined
+  let productRunner: ProductRuntime | undefined
+  ctx.effect(() => async () => {
+    gateway.close()
+    await Promise.all([runtime.close(), remoteBrowser.dispose(), productRunner?.close()])
+    products?.close()
+    await opened.store.close()
+  }, 'enterprise-console: runtimes and durable storage')
   const api = await EnterpriseApi.create({
+    product: await (async () => {
+      products = await ProductStore.open(config.dataDir)
+      productRunner = await ProductRuntime.open(products, opened.store, {
+        root: join(config.dataDir, 'product-jobs'),
+        ...(config.productPptSkillRoot === undefined ? {} : { skillRoot: config.productPptSkillRoot }),
+        python: config.productPython,
+        worker: join(config.tenantSourceRoot, 'packages/experimental/enterprise-console/src/product-ppt-export.py'),
+        modelTimeoutMs: config.productModelTimeoutMs, exportTimeoutMs: config.productExportTimeoutMs,
+        maxOutputTokens: config.productMaxOutputTokens, concurrency: config.productConcurrency,
+      }, (error) => { ctx.logger.warn(error) })
+      return new ProductApi(products, opened.store, productRunner, new ProductFeilian(products, opened.store.credentialKey, {
+        ...(config.productFeilianBaseUrl === undefined ? {} : { baseUrl: config.productFeilianBaseUrl }),
+        ...(config.productFeilianRegistrationUrl === undefined ? {} : { registrationUrl: config.productFeilianRegistrationUrl }),
+        ...(config.productFeilianEnterpriseUrl === undefined ? {} : { enterpriseUrl: config.productFeilianEnterpriseUrl }),
+        timeoutMs: config.productFeilianTimeoutMs,
+      }))
+    })(),
+    publicPathPrefix,
     store: opened.store,
     resources: new TeamResources(config.tenantRoot),
-    tenantPath: team => `${TENANT_ROOT}/${team.slug}/harness/`,
+    tenantPath: team => `${publicPathPrefix}${TENANT_ROOT}/${team.slug}/harness/`,
     prepareTenant: team => gateway.prepare(team),
     plugins: new SharedEnterprisePluginInstaller(pluginRoot, config.tenantSourceRoot),
     pluginsChanged: () => runtime.refresh(),
@@ -395,11 +465,11 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     remoteBrowser,
     logger: { warn: (error) => { ctx.logger.warn(error) } },
   })
-  const assets = new ConsoleAssets(config.distRoot)
+  const assets = new ConsoleAssets(config.distRoot, publicPathPrefix)
   const handler = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     const url = new URL(request.url ?? '/', 'http://enterprise.local')
     if (url.pathname === HARNESS_SESSION_GUARD_PATH) {
-      writeBytes(response, request.method, 200, Buffer.from(HARNESS_SESSION_GUARD_SCRIPT, 'utf8'), {
+      writeBytes(response, request.method, 200, Buffer.from(createHarnessSessionGuardScript(publicPathPrefix), 'utf8'), {
         'cache-control': 'no-store',
         'content-type': 'text/javascript; charset=utf-8',
       })
@@ -411,12 +481,11 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     }
     await assets.serve(request, response, url)
   }
-  ctx.effect(() => () => opened.store.close(), 'enterprise-console: database')
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: CONSOLE_ROOT,
     handler: (request, response) => {
-      redirect(response, `${CONSOLE_ROOT}/${new URL(request.url ?? '/', 'http://enterprise.local').search}`)
+      redirect(response, `${publicPathPrefix}${CONSOLE_ROOT}/${new URL(request.url ?? '/', 'http://enterprise.local').search}`)
     },
   }), 'enterprise-console: root redirect')
   ctx.effect(() => ctx.webServer.register({
@@ -432,13 +501,9 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       return gateway.handleHttp(request, response, url)
     },
   }), 'enterprise-console: isolated tenant routes')
-  ctx.effect(() => () => {
-    gateway.close()
-    return Promise.all([runtime.close(), remoteBrowser.dispose()]).then(() => {})
-  }, 'enterprise-console: tenant processes and remote browsers')
   ctx.on('webserver/index-inject', (table) => {
     table.push({ kind: 'script', placement: 'head', text: "document.documentElement.setAttribute('data-dsh-enterprise','')" })
-    table.push({ kind: 'script-src', placement: 'body', src: HARNESS_SESSION_GUARD_PATH })
+    table.push({ kind: 'script-src', placement: 'body', src: `${publicPathPrefix}${HARNESS_SESSION_GUARD_PATH}` })
   })
   if (opened.seeded) {
     ctx.logger.info(`enterprise-console: initialized ${config.bootstrapAdminEmail}; initial password written to ${opened.initialPasswordFile}`)

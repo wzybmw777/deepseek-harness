@@ -1,3 +1,4 @@
+import { publicPath } from './public-path.ts'
 import type {
   Audit,
   BillingCycle,
@@ -27,7 +28,7 @@ import type {
   UserCreateResult,
 } from './types.ts'
 
-const API_ROOT = '/enterprise/api'
+const API_ROOT = publicPath('/enterprise/api')
 
 export class ApiError extends Error {
   constructor(
@@ -46,7 +47,13 @@ interface RequestOptions {
   query?: Record<string, string | number | undefined>
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+/**
+ * Send a same-origin console request.
+ * @param path - API-relative path.
+ * @param options - method and input.
+ * @returns parsed response or typed API error.
+ */
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const url = new URL(`${API_ROOT}${path}`, window.location.origin)
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value !== undefined && value !== '') url.searchParams.set(key, String(value))

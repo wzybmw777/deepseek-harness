@@ -102,7 +102,14 @@ declare module '@deepseek-ai/dsh-session/types' {
      * a line. `args` is absent when the definition sets `recordInput: false`
      * because an authoritative domain event owns the input payload.
      */
-    'command/run': { commandId: CommandId; name: string; args?: string; source: CommandSource }
+    'command/run': {
+      commandId: CommandId
+      name: string
+      args?: string
+      source: CommandSource
+      /** True for a user interaction that belongs in history without a model turn; absent for configuration commands. */
+      conversation?: true
+    }
     /**
      * The paired command settled. `kind`/`text` carry the handler's verbatim
      * outcome (a thrown/aborted handler settles as `kind: 'error'` with the

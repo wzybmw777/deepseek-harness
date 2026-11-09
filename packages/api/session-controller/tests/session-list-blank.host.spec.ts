@@ -1,6 +1,6 @@
 /**
  * The summary blank bit means "conversation not started" (no turn has run),
- * not "log empty": standalone plugin events — command lifecycle records,
+ * except for opted-in conversation commands, not "log empty": standalone plugin events — command lifecycle records,
  * plan/mode, permission knob events, session titles — never flip it, so running /plan or /goal on a
  * fresh session keeps it list-hidden and reusable, while the first accepted
  * prompt's turn/start clears it. The host/session-added frame shares the
@@ -75,6 +75,22 @@ async function listBlank(remote: TestSessionRemote, id: string): Promise<boolean
 }
 
 describe('summary blank = conversation not started', () => {
+  it('retains a conversation command without starting a model turn', async () => {
+    const { ctx, remote, attach } = await harness()
+    const session = ctx.sessions.create()
+    await attach(session)
+    session.append('command/run', {
+      commandId: CommandId('product-result'), name: 'external-task', source: { kind: 'user' }, conversation: true,
+    })
+    session.append('command/done', { commandId: CommandId('product-result'), kind: 'success' })
+    expect(await listBlank(remote, session.id)).toBe(false)
+    const result = await remote.list({})
+    if (!result.ok) throw new Error('list failed')
+    expect(result.value.items.find(item => item.sessionId === session.id)).toMatchObject({
+      blank: false,
+      projections: { values: { sessionListMetadata: { blank: false } } },
+    })
+  })
   it('standalone events (command lifecycle, plan/mode, title) keep the session blank', async () => {
     const { ctx, remote, attach } = await harness()
     const session = ctx.sessions.create()
@@ -142,6 +158,23 @@ async function resumeAndObserve(ctx: Context, remote: TestSessionRemote, id: Ses
 }
 
 describe('resumed Session summaries', () => {
+  it('restores command-only conversation history after a cold resume', async () => {
+    const { ctx, remote, cwd } = await resumeHarness()
+    const id = 'session-resumed-product' as SessionId
+    const commandAt = Date.now() + 60_000
+    await storeSession(ctx, id, cwd, [
+      ...configurationEvents,
+      { type: 'command/run', seq: SessionSeq(3), time: commandAt, data: {
+        commandId: CommandId('product-cold'), name: 'external-task', source: { kind: 'user' }, conversation: true,
+      } },
+      { type: 'command/done', seq: SessionSeq(4), time: commandAt + 1, data: {
+        commandId: CommandId('product-cold'), kind: 'success',
+      } },
+    ] as SessionEvent[])
+    const { added, listed } = await resumeAndObserve(ctx, remote, id)
+    expect(added.map(summary => [summary.updatedAt, summary.blank])).toEqual(added.map(() => [commandAt, false]))
+    expect(listed).toMatchObject({ blank: false, updatedAt: commandAt })
+  })
   it('publish a turnless resumed Session as blank', async () => {
     const { ctx, remote, cwd } = await resumeHarness()
     const id = 'session-resumed-blank' as SessionId
