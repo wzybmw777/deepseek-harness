@@ -1,0 +1,7 @@
+{
+  "name": "zhiliu-enterprise-web-shell",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Electron shell that loads the same enterprise web UI used by the browser.",
+  "main": "main.cjs"
+}
