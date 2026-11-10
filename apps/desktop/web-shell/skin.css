@@ -66,146 +66,68 @@ html[data-zhiliu-skin="enterprise"] #root {
   z-index: 2147483000;
   inset: 0 0 auto 0;
   box-sizing: border-box;
-  height: var(--zl-topbar-height);
   display: flex;
   align-items: center;
-  gap: 22px;
-  padding: 0 24px;
-  color: #f8f4ea;
-  background:
-    radial-gradient(circle at 12% -80%, rgba(217, 95, 71, 0.36), transparent 44%),
-    linear-gradient(112deg, #142c25 0%, #19372d 55%, #10251f 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 7px 25px rgba(20, 36, 31, 0.2);
-  font-family: "Segoe UI Variable", "Microsoft YaHei UI", "PingFang SC", sans-serif;
-}
-
-#zhiliu-enterprise-header::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--zl-accent) 18%, transparent 54%);
-  opacity: 0.7;
-  pointer-events: none;
 }
 
 .zl-topbar-brand,
 .zl-topbar-context,
-.zl-topbar-status,
-.zl-topbar-account,
-.zl-topbar-wordmark,
-.zl-topbar-account-copy {
+.zl-topbar-wordmark {
   display: flex;
   align-items: center;
 }
 
 .zl-topbar-brand {
-  gap: 12px;
-  min-width: 244px;
+  gap: 8px;
 }
 
-.zl-topbar-wordmark,
-.zl-topbar-account-copy {
+.zl-topbar-wordmark {
   flex-direction: column;
   align-items: flex-start;
-  gap: 1px;
-  line-height: 1.2;
-}
-
-.zl-topbar-eyebrow {
-  color: rgba(247, 240, 229, 0.55);
-  font-size: 9px;
-  font-weight: 650;
-  letter-spacing: 0.17em;
+  gap: 0;
+  line-height: 1.25;
 }
 
 .zl-topbar-wordmark strong {
-  color: #fffaf0;
-  font-size: 15px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
+  color: var(--zl-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .zl-topbar-divider {
   width: 1px;
-  height: 30px;
-  background: rgba(255, 255, 255, 0.13);
+  height: 24px;
+  background: var(--zl-border);
 }
 
 .zl-topbar-context {
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  min-width: 160px;
+  gap: 1px;
+  min-width: 72px;
+  margin-left: 8px;
 }
 
 .zl-topbar-context-label {
-  color: rgba(247, 240, 229, 0.5);
-  font-size: 10px;
-  letter-spacing: 0.04em;
+  color: var(--zl-text-muted);
+  font-size: 9px;
+  line-height: 1.1;
 }
 
 .zl-topbar-project {
   max-width: 220px;
   overflow: hidden;
-  color: #fff9ef;
-  font-size: 13px;
+  color: var(--zl-text);
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .zl-topbar-spacer {
   flex: 1;
-}
-
-.zl-topbar-status {
-  gap: 8px;
-  color: rgba(247, 240, 229, 0.75);
-  font-size: 11px;
-}
-
-.zl-status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: #89bd91;
-  box-shadow: 0 0 0 4px rgba(137, 189, 145, 0.1);
-}
-
-.zl-topbar-account {
-  gap: 9px;
-  min-width: 160px;
-  padding-left: 2px;
-}
-
-.zl-account-avatar {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 50%;
-  color: #fff6e9;
-  background: rgba(255, 255, 255, 0.1);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.zl-account-label {
-  color: rgba(247, 240, 229, 0.47);
-  font-size: 9px;
-}
-
-.zl-topbar-account strong {
-  max-width: 110px;
-  overflow: hidden;
-  color: #fff9f0;
-  font-size: 12px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Application frame and sidebar */
@@ -239,14 +161,6 @@ html[data-zhiliu-skin="enterprise"] .CRD1uG_logoRow {
   padding: 0 !important;
   overflow: visible !important;
   border: 0 !important;
-}
-
-html[data-zhiliu-skin="enterprise"] .CRD1uG_logoRow::before {
-  content: "工作台导航";
-  color: #707872;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.13em;
 }
 
 html[data-zhiliu-skin="enterprise"] .CRD1uG_brand {
@@ -516,74 +430,6 @@ html[data-zhiliu-skin="enterprise"] .eqEnzG_scrollBody {
   background-size: 32px 32px;
 }
 
-html[data-zhiliu-skin="enterprise"] .eqEnzG_composerStack {
-  padding-bottom: 26px !important;
-}
-
-html[data-zhiliu-skin="enterprise"] ._3Je8hW_fishHitbox {
-  display: none !important;
-}
-
-html[data-zhiliu-skin="enterprise"] ._3Je8hW_headline {
-  justify-content: center !important;
-}
-
-html[data-zhiliu-skin="enterprise"] ._3Je8hW_titleGroup {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 12px !important;
-  min-height: 48px;
-  color: var(--zl-ink) !important;
-}
-
-html[data-zhiliu-skin="enterprise"] ._3Je8hW_titleGroup > span:first-child {
-  display: none !important;
-}
-
-html[data-zhiliu-skin="enterprise"] ._3Je8hW_titleGroup::before {
-  content: "把想法交给织流";
-  color: var(--zl-ink);
-  font-family: "Microsoft YaHei UI", "PingFang SC", sans-serif;
-  font-size: clamp(28px, 3vw, 38px);
-  font-weight: 700;
-  letter-spacing: -0.055em;
-  line-height: 1.15;
-}
-
-html[data-zhiliu-skin="enterprise"] ._3Je8hW_previewBadge {
-  height: 22px !important;
-  display: inline-flex !important;
-  align-items: center;
-  padding: 0 9px !important;
-  border: 1px solid rgba(217, 95, 71, 0.22) !important;
-  border-radius: 999px !important;
-  color: var(--zl-accent-dark) !important;
-  background: rgba(217, 95, 71, 0.08) !important;
-  font-size: 10px !important;
-  font-weight: 700;
-}
-
-html[data-zhiliu-skin="enterprise"] .eqEnzG_heroWorkspaceRow {
-  align-self: center;
-  width: auto !important;
-  min-height: 34px;
-  padding: 3px 8px;
-  border: 1px solid rgba(43, 57, 50, 0.09);
-  border-radius: 999px;
-  background: rgba(255, 253, 248, 0.7);
-}
-
-html[data-zhiliu-skin="enterprise"] ._3Je8hW_workspace {
-  color: #35443d !important;
-  background: transparent !important;
-}
-
-html[data-zhiliu-skin="enterprise"] ._3Je8hW_workspaceLabel {
-  color: #35443d !important;
-  font-weight: 600;
-}
-
 html[data-zhiliu-skin="enterprise"] .dsh-ent-quota-plan {
   color: var(--zl-accent-dark) !important;
   background: rgba(217, 95, 71, 0.08) !important;
@@ -601,64 +447,53 @@ html[data-zhiliu-skin="enterprise"] .dsh-ent-quota-track {
 
 html[data-zhiliu-skin="enterprise"] .mk7YQa_card {
   padding-top: 13px !important;
-  border: 1px solid #d8d0c3 !important;
+  border: 1px solid var(--zl-border-soft) !important;
   border-radius: 23px !important;
   color: var(--zl-text) !important;
   background: var(--zl-surface) !important;
   box-shadow:
-    0 24px 65px rgba(39, 51, 45, 0.13),
-    0 2px 4px rgba(39, 51, 45, 0.04),
-    inset 0 1px 0 #fff !important;
-}
-
-html[data-zhiliu-skin="enterprise"] .mk7YQa_card::before {
-  content: "向织流描述一个业务目标";
-  position: absolute;
-  top: -27px;
-  left: 7px;
-  color: #7e8580;
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.03em;
+    0 18px 45px rgba(15, 23, 42, 0.1),
+    0 2px 4px rgba(15, 23, 42, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
 }
 
 html[data-zhiliu-skin="enterprise"] .mk7YQa_input {
-  color: #24352d !important;
+  color: var(--zl-text) !important;
   caret-color: var(--zl-accent);
 }
 
 html[data-zhiliu-skin="enterprise"] .mk7YQa_row {
   min-height: 38px !important;
-  border-top: 1px solid rgba(43, 56, 49, 0.08);
+  border-top: 1px solid var(--zl-border-soft);
 }
 
 html[data-zhiliu-skin="enterprise"] .mk7YQa_tools button,
 html[data-zhiliu-skin="enterprise"] .mk7YQa_trailing button,
 html[data-zhiliu-skin="enterprise"] .mk7YQa_standardControls button {
-  color: #495750 !important;
-  background: #f3eee5 !important;
+  color: var(--zl-text-secondary) !important;
+  background: var(--zl-hover) !important;
   border-radius: 9px !important;
 }
 
 html[data-zhiliu-skin="enterprise"] .mk7YQa_add {
-  color: var(--zl-ink) !important;
-  background: #ebe5da !important;
+  color: var(--zl-text) !important;
+  background: var(--zl-hover) !important;
 }
 
 html[data-zhiliu-skin="enterprise"] .mk7YQa_primary {
-  color: #fffaf1 !important;
-  background: var(--zl-accent) !important;
+  color: var(--zl-on-action) !important;
+  background: var(--zl-action) !important;
   border-radius: 11px !important;
-  box-shadow: 0 7px 14px rgba(217, 95, 71, 0.2);
+  box-shadow: 0 7px 14px color-mix(in srgb, var(--zl-action) 24%, transparent);
 }
 
 html[data-zhiliu-skin="enterprise"] .mk7YQa_primary:hover {
-  background: var(--zl-accent-dark) !important;
+  background: var(--zl-action-hover) !important;
 }
 
 html[data-zhiliu-skin="enterprise"] .mk7YQa_modes,
 html[data-zhiliu-skin="enterprise"] .mk7YQa_trailing {
-  color: #53615a;
+  color: var(--zl-text-secondary);
 }
 
 /* Right rail and floating surfaces use the same enterprise palette */
@@ -688,23 +523,12 @@ html[data-zhiliu-skin="enterprise"] ::selection {
 }
 
 @media (max-width: 1180px) {
-  #zhiliu-enterprise-header {
-    gap: 14px;
-    padding-inline: 18px;
-  }
-  .zl-topbar-context,
-  .zl-topbar-status {
+  .zl-topbar-context {
     display: none;
-  }
-  .zl-topbar-brand {
-    min-width: 220px;
   }
 }
 
 @media (max-width: 980px) {
-  .zl-topbar-account {
-    display: none;
-  }
   #zhiliu-enterprise-header {
     justify-content: space-between;
   }
@@ -729,10 +553,6 @@ html[data-zhiliu-skin="enterprise"] button.mk7YQa_primary svg {
   color: #fffaf1 !important;
 }
 /* Collapsed navigation keeps a clean icon rail instead of compressing the full card layout. */
-html[data-zhiliu-skin="enterprise"] .CRD1uG_collapsed .CRD1uG_logoRow::before {
-  display: none;
-}
-
 html[data-zhiliu-skin="enterprise"] .CRD1uG_collapsed .CRD1uG_newSession {
   justify-content: center;
   padding: 0 !important;
@@ -895,22 +715,13 @@ html[data-zhiliu-skin="enterprise"] #root {
 }
 
 .zl-topbar-brand {
-  min-width: 228px;
-  gap: 10px;
+  min-width: 0;
+  gap: 8px;
 }
 
-.zl-topbar-wordmark,
-.zl-topbar-account-copy {
+.zl-topbar-wordmark {
   gap: 0;
   line-height: 1.25;
-}
-
-.zl-topbar-eyebrow {
-  color: var(--zl-text-muted);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
 }
 
 .zl-topbar-wordmark strong {
@@ -950,7 +761,7 @@ html[data-zhiliu-skin="enterprise"] #root {
 }
 
 .zl-topbar-context {
-  min-width: 150px;
+  min-width: 72px;
   gap: 1px;
 }
 
@@ -964,52 +775,7 @@ html[data-zhiliu-skin="enterprise"] #root {
   color: var(--zl-text);
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.4;
-}
-
-.zl-topbar-status {
-  min-height: 24px;
-  gap: 6px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--zl-text-muted);
-  background: transparent;
-  font-size: 11px;
-}
-
-.zl-status-dot {
-  width: 6px;
-  height: 6px;
-  background: var(--zl-success);
-  box-shadow: none;
-}
-
-.zl-topbar-account {
-  min-width: 146px;
-  gap: 8px;
-  padding-left: 4px;
-}
-
-.zl-account-avatar {
-  width: 28px;
-  height: 28px;
-  border: 0.8px solid rgba(65, 118, 230, 0.2);
-  color: var(--zl-primary);
-  background: var(--zl-primary-soft);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.zl-account-label {
-  color: var(--zl-text-muted);
-  font-size: 9px;
-}
-
-.zl-topbar-account strong {
-  color: var(--zl-text-secondary);
-  font-size: 11px;
-  font-weight: 500;
+  line-height: 1.3;
 }
 html[data-zhiliu-skin="enterprise"] [class*="_7kFT7W_frame"] {
   color: var(--zl-text);
@@ -1033,13 +799,6 @@ html[data-zhiliu-skin="enterprise"] .CRD1uG_logoRow {
   min-height: 40px !important;
   margin: 0 0 8px !important;
   padding: 2px 4px !important;
-}
-
-html[data-zhiliu-skin="enterprise"] .CRD1uG_logoRow::before {
-  content: "工作台";
-  color: var(--zl-text);
-  font-size: 13px;
-  font-weight: 600;
 }
 
 html[data-zhiliu-skin="enterprise"] .CRD1uG_toggle {
@@ -1319,16 +1078,6 @@ html[data-zhiliu-skin="enterprise"] ._3Je8hW_titleGroup {
   color: var(--zl-text) !important;
 }
 
-html[data-zhiliu-skin="enterprise"] ._3Je8hW_titleGroup::before {
-  content: "把想法交给织流";
-  color: var(--zl-text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  font-size: clamp(26px, 2.6vw, 34px);
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.2;
-}
-
 html[data-zhiliu-skin="enterprise"] ._3Je8hW_previewBadge {
   height: 20px !important;
   padding: 0 7px !important;
@@ -1554,10 +1303,6 @@ html[data-zhiliu-skin="enterprise"] ::selection {
   color: var(--zl-text);
   background: rgba(65, 118, 230, 0.18);
 }
-html[data-zhiliu-skin="enterprise"] .CRD1uG_collapsed .CRD1uG_logoRow::before {
-  display: none;
-}
-
 html[data-zhiliu-skin="enterprise"] .CRD1uG_collapsed .CRD1uG_newSession {
   justify-content: center;
   padding: 0 !important;
@@ -1714,12 +1459,6 @@ html[data-zl-theme="dark"] .zl-theme-icon-dark {
   gap: 8px;
 }
 
-#zhiliu-enterprise-header .zl-topbar-eyebrow {
-  font-size: 8px;
-  letter-spacing: 0.14em;
-  line-height: 1.1;
-}
-
 #zhiliu-enterprise-header .zl-topbar-wordmark strong {
   font-size: 13px;
   line-height: 1.2;
@@ -1740,12 +1479,6 @@ html[data-zl-theme="dark"] .zl-theme-icon-dark {
   line-height: 1.3;
 }
 
-#zhiliu-enterprise-header .zl-topbar-status {
-  min-height: 20px;
-  padding: 0 6px;
-  font-size: 10px;
-}
-
 #zhiliu-enterprise-header .zl-theme-toggle,
 #zhiliu-enterprise-header .zl-update-button {
   width: 28px;
@@ -1759,7 +1492,6 @@ html[data-zl-theme="dark"] .zl-theme-icon-dark {
 }
 
 #zhiliu-enterprise-header[data-zl-chrome-only] .zl-topbar-context,
-#zhiliu-enterprise-header[data-zl-chrome-only] .zl-topbar-status,
 #zhiliu-enterprise-header[data-zl-chrome-only] .zl-topbar-divider,
 #zhiliu-enterprise-header[data-zl-chrome-only] .zl-theme-toggle,
 #zhiliu-enterprise-header[data-zl-chrome-only] .zl-update-button {
@@ -1780,4 +1512,144 @@ html[data-zhiliu-skin="enterprise"] .boot-screen {
 
 html[data-zhiliu-skin="enterprise"] .admin-sidebar {
   height: 100%;
+}
+
+/* Layout polish: quiet the shell, reclaim sidebar space, and give the
+   conversation a wider reading column without changing the hosted product. */
+#zhiliu-enterprise-header .zl-topbar-brand {
+  gap: 8px;
+}
+
+.zl-topbar-mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  background: var(--zl-brand-icon) center / contain no-repeat;
+}
+
+/* The hosted page injects its own brand slot. Keep one source of truth for
+   the mark and use the same asset in the desktop window bar. */
+html[data-zhiliu-skin="enterprise"] [data-slot="sidebar.brand.mark"],
+html[data-zhiliu-skin="enterprise"] [data-slot="conversation.hero.brand.mark"] {
+  display: grid !important;
+  place-items: center;
+}
+
+html[data-zhiliu-skin="enterprise"] [data-slot="sidebar.brand.mark"]::before,
+html[data-zhiliu-skin="enterprise"] [data-slot="conversation.hero.brand.mark"]::before {
+  content: "";
+  display: block;
+  width: 24px;
+  height: 24px;
+  background: var(--zl-brand-icon) center / contain no-repeat;
+}
+
+html[data-zhiliu-skin="enterprise"] [data-slot="conversation.hero.brand.mark"]::before {
+  width: 30px;
+  height: 30px;
+}
+
+html[data-zhiliu-skin="enterprise"] [data-slot="sidebar.brand.mark"] > svg,
+html[data-zhiliu-skin="enterprise"] [data-slot="conversation.hero.brand.mark"] > svg,
+html[data-zhiliu-skin="enterprise"] [data-dsh-enterprise-brand-mark] {
+  display: none !important;
+}
+
+#zhiliu-enterprise-header .zl-topbar-context {
+  min-width: 72px;
+  margin-left: 8px;
+  gap: 1px;
+}
+
+#zhiliu-enterprise-header .zl-topbar-context-label {
+  color: var(--zl-text-muted);
+  font-size: 9px;
+}
+
+#zhiliu-enterprise-header .zl-topbar-project {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+html[data-zhiliu-skin="enterprise"] .CRD1uG_logoRow {
+  height: 30px !important;
+  min-height: 30px !important;
+  margin: 0 0 6px !important;
+  padding: 0 2px !important;
+  justify-content: flex-end !important;
+}
+
+html[data-zhiliu-skin="enterprise"] .eqEnzG_header {
+  padding: 8px 20px 0 !important;
+}
+
+html[data-zhiliu-skin="enterprise"] .eqEnzG_tabs {
+  margin-top: 6px !important;
+}
+
+html[data-zhiliu-skin="enterprise"] .eqEnzG_headerMenuButton,
+html[data-zhiliu-skin="enterprise"] .eqEnzG_viewsMore {
+  display: none !important;
+}
+
+html[data-zhiliu-skin="enterprise"] .jQzzwW_scroll {
+  padding: 20px 32px 28px !important;
+}
+
+html[data-zhiliu-skin="enterprise"] .jQzzwW_column {
+  width: 100% !important;
+  max-width: 768px !important;
+  margin-inline: auto !important;
+}
+
+html[data-zhiliu-skin="enterprise"] .mk7YQa_card {
+  width: 100% !important;
+  max-width: 768px !important;
+}
+
+html[data-zhiliu-skin="enterprise"] .mk7YQa_root {
+  padding: 0 32px 4px !important;
+}
+
+html[data-zhiliu-skin="enterprise"] .eqEnzG_composerHero {
+  width: min(832px, 100%) !important;
+  max-width: 832px !important;
+}
+
+html[data-zhiliu-skin="enterprise"] .eqEnzG_composerHero .mk7YQa_root {
+  box-sizing: border-box !important;
+  width: 100% !important;
+}
+
+html[data-zhiliu-skin="enterprise"] ._3Je8hW_previewBadge,
+html[data-zhiliu-skin="enterprise"] .eqEnzG_heroWorkspaceRow {
+  display: none !important;
+}
+
+html[data-zhiliu-skin="enterprise"] .eqEnzG_composerStack {
+  padding-bottom: 18px !important;
+}
+
+/* The desktop window bar removes 40px from #root. Keep viewport-sized admin
+   pages inside that remaining box and let the main column own vertical scroll. */
+html[data-zhiliu-skin="enterprise"] .admin-shell {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html[data-zhiliu-skin="enterprise"] .admin-main {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+html[data-zhiliu-skin="enterprise"] .admin-sidebar {
+  height: 100%;
+  min-height: 0;
+}
+
+html[data-zhiliu-skin="enterprise"] .admin-topbar {
+  flex: 0 0 auto;
 }

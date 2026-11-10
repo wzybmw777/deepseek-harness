@@ -16,6 +16,38 @@ test('uses a 40px hidden title bar with native overlay controls', () => {
   assert.match(skinCss, /-webkit-app-region: drag/)
 })
 
+test('draws one shared raster brand mark instead of inline logo shapes', () => {
+  assert.match(mainSource, /zhiliu-icon-128\.png/)
+  assert.match(mainSource, /--zl-brand-icon/)
+  assert.match(skinCss, /background: var\(--zl-brand-icon\) center \/ contain no-repeat/)
+  assert.doesNotMatch(source, /viewBox="0 0 20 20"/)
+  assert.match(skinCss, /\[data-slot="sidebar\.brand\.mark"\]/)
+  assert.match(skinCss, /\[data-slot="conversation\.hero\.brand\.mark"\]/)
+})
+
+test('keeps the admin shell bounded and scrolls its main column', () => {
+  const rule = (selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const match = skinCss.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))
+    assert.ok(match, `missing CSS rule for ${selector}`)
+    return match[1]
+  }
+
+  assert.match(rule('html[data-zhiliu-skin="enterprise"] #root'), /overflow:\s*hidden/)
+  assert.match(rule('html[data-zhiliu-skin="enterprise"] .admin-shell'), /height:\s*100%/)
+  assert.match(rule('html[data-zhiliu-skin="enterprise"] .admin-shell'), /min-height:\s*0/)
+  assert.match(rule('html[data-zhiliu-skin="enterprise"] .admin-main'), /overflow-y:\s*auto/)
+  assert.match(rule('html[data-zhiliu-skin="enterprise"] .admin-main'), /height:\s*100%/)
+  assert.match(rule('html[data-zhiliu-skin="enterprise"] .admin-topbar'), /flex:\s*0 0 auto/)
+})
+
+test('keeps the short product name in the window title', async context => {
+  const window = await openPage(context)
+  window.document.title = '织流企业 AI 工作台'
+  await settle(window)
+  assert.equal(window.document.title, '企业 AI 工作台')
+})
+
 async function settle(window) {
   await new Promise(resolve => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)))
 }

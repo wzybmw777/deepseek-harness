@@ -18,7 +18,7 @@ export function AdminLayout({ children }: { children: ReactNode }): ReactNode {
     return new Set(saved === null ? [] : saved.split(',').filter(Boolean))
   })
   const userMenuRef = useRef<HTMLDivElement>(null)
-  const brandName = session?.settings.brandName ?? '织流企业 AI 工作台'
+  const brandName = session?.settings.brandName ?? '企业 AI 工作台'
   const resourceTeam = new URLSearchParams(location.search).get('team')
 
   useEffect(() => {

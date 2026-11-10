@@ -23,8 +23,8 @@
   function syncUpdateButton() {
     const button = document.querySelector('[data-zl-update]')
     if (!button) return
-    button.hidden = !updateState
-    if (!updateState) return
+    button.hidden = !updateState || updateState.status === 'unsupported'
+    if (button.hidden) return
     const labels = {
       idle: '检查客户端更新',
       current: `已是最新版本 ${updateState.currentVersion}，点击重新检查`,
@@ -109,21 +109,17 @@
     header.setAttribute('role', 'banner')
     header.innerHTML = `
       <div class="zl-topbar-brand" aria-label="企业 AI 工作台">
+        <span class="zl-topbar-mark" aria-hidden="true"></span>
         <span class="zl-topbar-wordmark">
-          <span class="zl-topbar-eyebrow">ZHILIU · ENTERPRISE</span>
           <strong>企业 AI 工作台</strong>
         </span>
       </div>
       <div class="zl-topbar-divider" aria-hidden="true"></div>
-      <div class="zl-topbar-context" aria-label="当前工作空间">
-        <span class="zl-topbar-context-label">当前工作空间</span>
+      <div class="zl-topbar-context" aria-label="当前项目">
+        <span class="zl-topbar-context-label">当前项目</span>
         <span class="zl-topbar-project" data-zl-project>默认项目</span>
       </div>
       <div class="zl-topbar-spacer"></div>
-      <div class="zl-topbar-status" title="当前使用企业云服务">
-        <span class="zl-status-dot" aria-hidden="true"></span>
-        <span>企业云空间</span>
-      </div>
       <button type="button" class="zl-update-button" data-zl-update hidden>
         <svg width="18" height="18" aria-hidden="true" focusable="false"><use href="#dsw-icon-download-outline-regular"></use></svg>
         <span data-zl-update-label aria-live="polite"></span>
@@ -174,11 +170,18 @@
     setText(boot, ':scope > div > span:not(.spinner)', '正在加载企业控制台…')
   }
 
-  function install() {
-    syncAdminLoading()
+  function syncBrandName() {
     for (const name of document.querySelectorAll('.admin-sidebar .sidebar-brand .brand-lockup-name')) {
       if (name.textContent.trim() === '织流企业 AI 工作台') name.textContent = '企业 AI 工作台'
     }
+    if (document.title.includes('织流企业 AI 工作台')) {
+      document.title = document.title.split('织流企业 AI 工作台').join('企业 AI 工作台')
+    }
+  }
+
+  function install() {
+    syncAdminLoading()
+    syncBrandName()
     const frame = document.querySelector(FRAME_SELECTOR)
     const existing = document.getElementById(HEADER_ID)
     const workspaceExpected = location.pathname.startsWith('/t/') && location.pathname.includes('/harness')

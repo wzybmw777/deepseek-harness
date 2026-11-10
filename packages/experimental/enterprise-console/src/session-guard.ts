@@ -511,16 +511,10 @@ const SESSION_GUARD_STYLES = String.raw`
     background: var(--dsw-alias-border-l1, rgba(15, 23, 42, 0.08));
   }
 
-  .dsh-ent-brand-mark-tile {
-    fill: var(--dsw-alias-label-primary, #0f1115);
-  }
-
-  .dsh-ent-brand-mark-glyph {
-    fill: var(--dsw-alias-bg-layer-3, #ffffff);
-  }
-
-  .dsh-ent-brand-mark-stroke {
-    stroke: var(--dsw-alias-label-primary, #0f1115);
+  .dsh-ent-brand-mark {
+    display: block;
+    flex: none;
+    object-fit: contain;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -612,12 +606,10 @@ export function createHarnessSessionGuardScript(publicPathPrefix: string): strin
     return wrapper
   }
 
-  function brandMarkSvg(size) {
-    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 40 40" fill="none" aria-hidden="true" data-dsh-enterprise-brand-mark="true">'
-      + '<rect class="dsh-ent-brand-mark-tile" width="40" height="40" rx="10"/>'
-      + '<path class="dsh-ent-brand-mark-glyph" d="M10.5 13h7.2c5.4 0 9.8 4.4 9.8 9.8V27h-7.2c-5.4 0-9.8-4.4-9.8-9.8V13Z"/>'
-      + '<path class="dsh-ent-brand-mark-stroke" d="M16 19h4.8c3.4 0 6.2 2.8 6.2 6.2" stroke-width="2.6" stroke-linecap="round"/>'
-      + '</svg>'
+  function brandMark(size) {
+    return '<img class="dsh-ent-brand-mark" width="' + size + '" height="' + size + '"'
+      + ' alt="" aria-hidden="true" data-dsh-enterprise-brand-mark="true"'
+      + ' src="' + enterprisePath('/enterprise/brand-mark.png') + '">'
   }
 
   function replaceBrandText(root) {
@@ -642,7 +634,7 @@ export function createHarnessSessionGuardScript(publicPathPrefix: string): strin
     for (var index = 0; index < slots.length; index++) {
       var slot = slots[index]
       if (slot.querySelector('[data-dsh-enterprise-brand-mark]') !== null) continue
-      slot.innerHTML = brandMarkSvg(slot.getAttribute('data-slot') === 'conversation.hero.brand.mark' ? 30 : 24)
+      slot.innerHTML = brandMark(slot.getAttribute('data-slot') === 'conversation.hero.brand.mark' ? 30 : 24)
     }
     var names = document.querySelectorAll('[data-slot="sidebar.brand.name"]')
     for (var nameIndex = 0; nameIndex < names.length; nameIndex++) replaceBrandText(names[nameIndex])
@@ -653,7 +645,7 @@ export function createHarnessSessionGuardScript(publicPathPrefix: string): strin
       favicon.setAttribute('rel', 'icon')
       document.head.appendChild(favicon)
     }
-    if (favicon !== null) favicon.setAttribute('href', enterprisePath('/enterprise/favicon.svg'))
+    if (favicon !== null) favicon.setAttribute('href', enterprisePath('/enterprise/favicon.png'))
   }
 
   function applyDocumentTitle() {

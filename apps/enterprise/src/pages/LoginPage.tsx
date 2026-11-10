@@ -75,7 +75,7 @@ export function LoginPage(): ReactNode {
   const [message, setMessage] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [publicConfig, setPublicConfig] = useState<PublicConfig>({
-    brandName: '织流企业 AI 工作台',
+    brandName: '企业 AI 工作台',
     registrationEnabled: false,
     supportEmail: 'support@echoai.best',
     verificationEnabled: false,

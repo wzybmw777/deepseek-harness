@@ -9,9 +9,12 @@ const CLOUD_ORIGIN = new URL(
 ).origin
 const START_URL = new URL('/enterprise/login?next=%2Fenterprise%2Fworkspace', CLOUD_ORIGIN).href
 const ICON_PATH = path.join(__dirname, 'assets', 'zhiliu-icon.png')
+const BRAND_ICON_PATH = path.join(__dirname, 'assets', 'zhiliu-icon-128.png')
 const SKIN_CSS_PATH = path.join(__dirname, 'skin.css')
 const SKIN_JS_PATH = path.join(__dirname, 'skin.js')
-const SKIN_CSS = fs.readFileSync(SKIN_CSS_PATH, 'utf8')
+const BRAND_ICON = `data:image/png;base64,${fs.readFileSync(BRAND_ICON_PATH).toString('base64')}`
+const SKIN_CSS = `:root { --zl-brand-icon: url("${BRAND_ICON}"); }
+${fs.readFileSync(SKIN_CSS_PATH, 'utf8')}`
 const SKIN_JS = `${fs.readFileSync(SKIN_JS_PATH, 'utf8')}\n//# sourceURL=zhiliu-enterprise-skin.js`
 
 app.setName('织流')

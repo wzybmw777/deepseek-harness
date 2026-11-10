@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   }, [refresh])
 
   useEffect(() => {
-    document.title = session?.settings.brandName ?? '织流企业 AI 工作台'
+    document.title = session?.settings.brandName ?? '企业 AI 工作台'
   }, [session?.settings.brandName])
 
   const login = useCallback(async (identifier: string, password: string) => {
