@@ -1,5 +1,34 @@
 const { ipcRenderer, contextBridge } = require('electron')
 
+const THEME_KEY = 'zhiliu.desktop.theme'
+const BOOT_BACKGROUND = { light: '#fcfdff', dark: '#141922' }
+
+function readDesktopTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
+}
+
+function applyBootTheme() {
+  const root = document.documentElement
+  if (root === null) return false
+  const theme = readDesktopTheme()
+  root.setAttribute('data-zl-theme', theme)
+  root.setAttribute('data-zhiliu-skin', 'enterprise')
+  root.style.colorScheme = theme
+  root.style.setProperty('--zl-boot-bg', BOOT_BACKGROUND[theme])
+  return true
+}
+
+if (!applyBootTheme()) {
+  const observer = new MutationObserver(() => {
+    if (applyBootTheme()) observer.disconnect()
+  })
+  observer.observe(document, { childList: true })
+}
+
 contextBridge.exposeInMainWorld('zhiliuUpdates', {
   getState: () => ipcRenderer.invoke('zhiliu:update:state'),
   check: () => ipcRenderer.invoke('zhiliu:update:check'),

@@ -16,6 +16,25 @@ test('uses a 40px hidden title bar with native overlay controls', () => {
   assert.match(skinCss, /-webkit-app-region: drag/)
 })
 
+test('applies the saved desktop theme before the boot page paints', async context => {
+  for (const [preference, background] of [['light', '#fcfdff'], ['dark', '#141922']]) {
+    const dom = new JSDOM('<body></body>', {
+      url: 'https://example.test/t/default/harness/',
+      runScripts: 'outside-only',
+      pretendToBeVisual: true,
+    })
+    context.after(() => dom.window.close())
+    dom.window.localStorage.setItem('zhiliu.desktop.theme', preference)
+    dom.window.require = () => ({ contextBridge: { exposeInMainWorld() {} }, ipcRenderer: { send() {} } })
+    dom.window.eval(preload)
+    const root = dom.window.document.documentElement
+    assert.equal(root.dataset.zlTheme, preference)
+    assert.equal(root.dataset.zhiliuSkin, 'enterprise')
+    assert.equal(root.style.colorScheme, preference)
+    assert.equal(root.style.getPropertyValue('--zl-boot-bg'), background)
+  }
+})
+
 test('draws one shared raster brand mark instead of inline logo shapes', () => {
   assert.match(mainSource, /zhiliu-icon-128\.png/)
   assert.match(mainSource, /--zl-brand-icon/)
