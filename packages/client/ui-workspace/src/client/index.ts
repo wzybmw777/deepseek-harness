@@ -118,6 +118,8 @@ export function apply(ctx: Context): void {
   // view order through the same instance the renderer hands the browser.
   const viewHandle = createWorkspaceViewStore()
   const viewInstance = viewHandle.create()
+  // Move rehydrated pre-tree view state onto the project-tree navigation once.
+  viewInstance.actions.adoptProjectNavigation()
   const viewStore: typeof viewHandle = { ...viewHandle, create: () => viewInstance }
   const rowToast = createSnapshotStore<RowToastState | null>(null)
   let toastSeq = 0

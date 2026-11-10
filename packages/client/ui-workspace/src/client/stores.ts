@@ -22,6 +22,8 @@ export type SessionOrderBy = 'manual' | 'updated'
 type WorkspaceViewState = {
   groupBy: SessionGroupBy
   orderBy: SessionOrderBy
+  /** View revision; persisted pre-tree states migrate once to the project tree. */
+  navVersion: number
   /** Explicit group expansion keyed by Workspace identity, including descendants in tree mode. */
   groupExpansion: Record<string, boolean>
   /** Saved manual order per Workspace group plus the browser-local flat-list account. */
@@ -42,6 +44,7 @@ type SessionOrderSource = {
  */
 type WorkspaceViewActions = {
   setGroupBy: (draft: WorkspaceViewState, mode: SessionGroupBy) => void
+  adoptProjectNavigation: (draft: WorkspaceViewState) => void
   setOrderBy: (
     draft: WorkspaceViewState,
     mode: SessionOrderBy,
@@ -82,8 +85,9 @@ function copySessionOrders(
 export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState, WorkspaceViewActions> {
   return defineStore({
     init: (): WorkspaceViewState => ({
-      groupBy: 'workspace',
+      groupBy: 'workspace-tree',
       orderBy: 'updated',
+      navVersion: 1,
       groupExpansion: {},
       sessionOrderByAccount: {},
       archivedFilter: 'default',
@@ -91,6 +95,11 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
     persist: 'dsh.workspace.view.v5',
     actions: {
       setGroupBy: (d, mode: SessionGroupBy) => { d.groupBy = mode },
+      adoptProjectNavigation: (d) => {
+        if (d.navVersion === 1) return
+        d.groupBy = 'workspace-tree'
+        d.navVersion = 1
+      },
       setOrderBy: (d, mode: SessionOrderBy, initialOrders) => {
         if (mode === d.orderBy) return
         d.sessionOrderByAccount = mode === 'manual' ? copySessionOrders(initialOrders) : {}

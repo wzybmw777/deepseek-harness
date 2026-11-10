@@ -834,7 +834,7 @@ describe('deriveSearchResults', () => {
 describe('createWorkspaceViewStore', () => {
   it('stores view preferences and selects Manual when saving a drag order', () => {
     const store = createWorkspaceViewStore().create()
-    expect(store.getSnapshot().groupBy).toBe('workspace')
+    expect(store.getSnapshot().groupBy).toBe('workspace-tree')
     expect(store.getSnapshot().orderBy).toBe('updated')
     store.actions.setGroupBy('flat')
     store.actions.setOrderBy('updated', {})

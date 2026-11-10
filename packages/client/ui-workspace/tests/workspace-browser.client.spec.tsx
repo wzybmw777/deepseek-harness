@@ -683,7 +683,7 @@ describe('WorkspaceBrowser', () => {
     expect(screen.getByText('stored')).toBeTruthy()
   })
 
-  it('keeps Workspaces as siblings by default and restores the selected tree grouping', () => {
+  it('starts in the project tree and restores the selected sibling grouping', () => {
     const workspaces = hook(workspaceState([
       { ...workspace('root', [], 'Projects'), path: '/projects' },
       workspace('child', ['child-session'], 'Child'),
@@ -695,18 +695,15 @@ describe('WorkspaceBrowser', () => {
       fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
       fireEvent.click(screen.getByRole('menuitem', { name }))
     }
+    expect(b.store.getSnapshot().groupBy).toBe('workspace-tree')
+    expect(screen.getByText('Child')).toBeTruthy()
+    expect(within(parentSection()).getByText('Child')).toBeTruthy()
+    choose('按项目')
     expect(b.store.getSnapshot().groupBy).toBe('workspace')
     expect(screen.getByText('Child')).toBeTruthy()
     expect(within(parentSection()).queryByText('Child')).toBeNull()
     choose('按项目树')
-    expect(b.store.getSnapshot().groupBy).toBe('workspace-tree')
-    expect(within(parentSection()).getByText('Child')).toBeTruthy()
     fireEvent.click(screen.getByText('Projects'))
-    expect(screen.queryByText('Child')).toBeNull()
-    choose('按项目')
-    expect(screen.getByText('Child')).toBeTruthy()
-    expect(within(parentSection()).queryByText('Child')).toBeNull()
-    choose('按项目树')
     expect(screen.queryByText('Child')).toBeNull()
     b.view.unmount()
     const restored = mount({ useWorkspaces: workspaces, useSessions: sessions })
