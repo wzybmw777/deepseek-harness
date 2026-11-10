@@ -17,9 +17,9 @@ afterEach(() => {
 const HOLES = [
   'sidebar.brand.mark',
   'sidebar.brand.name',
-  'conversation.hero.frame',
 ] as const
 
+const FRAME_HOLE = 'conversation.hero.frame'
 const HERO_HOLE = 'conversation.hero.brand.mark'
 
 async function bench(declare = true) {
@@ -28,8 +28,8 @@ async function bench(declare = true) {
   const slots = ctx.get('slots') as SlotRegistry
   const declareHoles = () => slots.register({
     name: 'root',
-    children: Object.fromEntries([...HOLES, HERO_HOLE].map(name => [name, {
-      kind: name === 'conversation.hero.frame' ? 'hoc' : 'single',
+    children: Object.fromEntries([...HOLES, FRAME_HOLE, HERO_HOLE].map(name => [name, {
+      kind: name === FRAME_HOLE ? 'hoc' : 'single',
       scope: 'root',
     }])),
   } as never, () => null)
@@ -46,13 +46,13 @@ describe('official browser-brand plugin', () => {
     expect(inject).toEqual(['slots'])
   })
 
-  it('keeps local sidebar branding and provides the same blank-home feedback', async () => {
+  it('keeps local sidebar branding and leaves the blank home still', async () => {
     vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'local')
     const subject = await bench()
     await subject.ctx.plugin({ inject: [...inject], apply }).await()
     expect(subject.slots.entries('sidebar.brand.mark')).toHaveLength(0)
     expect(subject.slots.entries('sidebar.brand.name')).toHaveLength(0)
-    expect(subject.slots.entries('conversation.hero.frame')).toHaveLength(1)
+    expect(subject.slots.entries(FRAME_HOLE)).toHaveLength(0)
   })
 
   it('fills declarations before or after apply and removes every occupant on teardown', async () => {
@@ -86,15 +86,13 @@ describe('official browser-brand plugin', () => {
     expect(subject.slots.entries(HERO_HOLE)).toHaveLength(0)
   })
 
-  it('registers the whale as a self-contained frame layer without replacing the hero mark', async () => {
+  it('mounts nothing into the home frame layer and leaves the hero mark on its fallback', async () => {
     vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'official')
     const subject = await bench()
     const fiber = subject.ctx.plugin({ inject: [...inject], apply })
     try {
       await fiber.await()
-      const [entry] = subject.slots.entries('conversation.hero.frame')
-      expect(entry?.options.id).toBe('pixel-whale')
-      expect(entry?.inject).toBeUndefined()
+      expect(subject.slots.entries(FRAME_HOLE)).toHaveLength(0)
       expect(subject.slots.entries(HERO_HOLE)).toHaveLength(0)
     } finally {
       await fiber.dispose()
