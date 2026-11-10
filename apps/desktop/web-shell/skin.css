@@ -1100,6 +1100,10 @@ html[data-zhiliu-skin="enterprise"] .CRD1uG_moreAnchor {
   width: 100% !important;
 }
 
+html[data-zhiliu-skin="enterprise"] .CRD1uG_moreAnchor {
+  display: none !important;
+}
+
 html[data-zhiliu-skin="enterprise"] .CRD1uG_panelRow,
 html[data-zhiliu-skin="enterprise"] .dsh-ent-resource-toggle {
   min-height: 36px !important;
@@ -1619,6 +1623,33 @@ html[data-zhiliu-skin="enterprise"] .CRD1uG_newSessionContent {
   background: transparent;
   cursor: pointer;
 }
+
+.zl-update-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: none;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--zl-radius-control);
+  color: var(--zl-text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.zl-update-button[hidden] { display: none; }
+.zl-update-button span:empty { display: none; }
+.zl-update-button:disabled { cursor: default; }
+.zl-update-button:enabled:hover { color: var(--zl-primary); background: var(--zl-hover); }
+.zl-update-button:focus-visible { outline: 2px solid var(--zl-primary); outline-offset: 2px; }
+.zl-update-button[data-state="downloaded"] { color: var(--zl-primary); background: var(--zl-primary-soft); }
+.zl-update-button[data-state="error"] { color: var(--zl-warning); border-color: var(--zl-border); }
 
 html[data-zhiliu-skin="enterprise"][data-zl-theme="dark"] body {
   --dsw-alias-illustration-background: #202c3e;

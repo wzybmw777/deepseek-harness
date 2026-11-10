@@ -1,4 +1,15 @@
-const { ipcRenderer } = require('electron')
+const { ipcRenderer, contextBridge } = require('electron')
+
+contextBridge.exposeInMainWorld('zhiliuUpdates', {
+  getState: () => ipcRenderer.invoke('zhiliu:update:state'),
+  check: () => ipcRenderer.invoke('zhiliu:update:check'),
+  install: () => ipcRenderer.invoke('zhiliu:update:install'),
+  onState: callback => {
+    const listener = (_event, state) => callback(state)
+    ipcRenderer.on('zhiliu:update:changed', listener)
+    return () => ipcRenderer.removeListener('zhiliu:update:changed', listener)
+  },
+})
 
 function syncAppearance() {
   const root = document.documentElement

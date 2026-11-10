@@ -1,6 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
-const { app, BrowserWindow, Menu, shell, ipcMain, nativeTheme } = require('electron')
+const { app, BrowserWindow, Menu, shell, ipcMain, nativeTheme, dialog } = require('electron')
+const { createUpdater } = require('./updater.cjs')
+const { registerUpdateIpc } = require('./update-ipc.cjs')
 
 const CLOUD_ORIGIN = new URL(
   process.env.DSH_ENTERPRISE_CLOUD_ORIGIN ?? 'https://dev.echoai.best',
@@ -18,6 +20,45 @@ const debugPort = process.env.ZHILIU_DEBUG_PORT
 if (debugPort && /^[0-9]+$/u.test(debugPort)) app.commandLine.appendSwitch('remote-debugging-port', debugPort)
 
 let mainWindow
+let updates
+let installPromptOpen = false
+
+async function confirmInstall() {
+  if (installPromptOpen || updates.getState().status !== 'downloaded' || !mainWindow || mainWindow.isDestroyed()) return false
+  installPromptOpen = true
+  try {
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      title: '重启并更新织流',
+      message: `版本 ${updates.getState().version} 已下载完成`,
+      detail: '请先保存正在编辑的内容。继续后客户端将关闭，安装更新并重新启动。',
+      buttons: ['稍后', '重启安装'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    })
+    return result.response === 1 && updates.install()
+  } finally {
+    installPromptOpen = false
+  }
+}
+
+function setupUpdates() {
+  const enabled = app.isPackaged && process.platform === 'win32'
+  updates = createUpdater({
+    updater: enabled ? require('electron-updater').autoUpdater : undefined,
+    version: app.getVersion(),
+    enabled,
+    onState: state => {
+      if (mainWindow && !mainWindow.isDestroyed() && isCloudUrl(mainWindow.webContents.getURL())) {
+        mainWindow.webContents.send('zhiliu:update:changed', state)
+      }
+    },
+  })
+  const unregister = registerUpdateIpc({ ipcMain, getWindow: () => mainWindow, isCloudUrl, updates, confirmInstall })
+  app.once('will-quit', () => { unregister(); updates.dispose() })
+  updates.start()
+}
 
 ipcMain.on('zhiliu:appearance', (event, theme) => {
   if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame) return
@@ -84,7 +125,28 @@ function createWindow() {
     }
   }
 
-  Menu.setApplicationMenu(null)
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{
+    label: '帮助',
+    submenu: [{
+      label: '检查客户端更新',
+      click: async () => {
+        const state = await updates.check()
+        if (!mainWindow || mainWindow.isDestroyed()) return
+        if (state.status === 'downloaded') {
+          await confirmInstall()
+          return
+        }
+        const messages = {
+          current: `当前已是最新版本 ${state.currentVersion}`,
+          unsupported: '当前为源码运行版，请先安装企业下载服务提供的安装包，后续即可自动更新。',
+          error: '更新检查或下载失败，请检查网络后重试。',
+          downloading: '更新正在后台下载。',
+          installing: '正在安装更新。',
+        }
+        await dialog.showMessageBox(mainWindow, { type: state.status === 'error' ? 'warning' : 'info', title: '客户端更新', message: messages[state.status] ?? '正在检查更新。' })
+      },
+    }, { role: 'about', label: '关于织流' }],
+  }]))
   mainWindow.webContents.setUserAgent(
     mainWindow.webContents.getUserAgent().replace(/\sElectron\/\S+/u, ''),
   )
@@ -139,6 +201,7 @@ if (!lock) {
   app.on('second-instance', focusWindow)
   app.whenReady().then(() => {
     app.setAppUserModelId('com.echoai.zhiliu.desktop')
+    setupUpdates()
     createWindow()
   }).catch((error) => {
     console.error('zhiliu web shell: startup failed', error)

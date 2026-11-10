@@ -143,7 +143,7 @@ test('keeps live quota data and its billing link in the page without copying it 
 test('mirrors desktop appearance to native chrome and falls back to the page theme on exit', async context => {
   const window = await openPage(context)
   const sent = []
-  window.require = () => ({ ipcRenderer: { send: (...args) => sent.push(args) } })
+  window.require = () => ({ contextBridge: { exposeInMainWorld() {} }, ipcRenderer: { send: (...args) => sent.push(args) } })
   window.eval(preload)
   window.dispatchEvent(new window.Event('DOMContentLoaded'))
   window.document.querySelector('[data-zl-theme-toggle]').click()
@@ -177,7 +177,7 @@ test('labels console startup without changing workspace launch or keeping a stal
 test('tracks the admin theme for native chrome without a workspace header', async context => {
   const window = await openPage(context)
   const sent = []
-  window.require = () => ({ ipcRenderer: { send: (...args) => sent.push(args) } })
+  window.require = () => ({ contextBridge: { exposeInMainWorld() {} }, ipcRenderer: { send: (...args) => sent.push(args) } })
   window.eval(preload)
   window.dispatchEvent(new window.Event('DOMContentLoaded'))
   window.history.replaceState(null, '', '/enterprise/admin')

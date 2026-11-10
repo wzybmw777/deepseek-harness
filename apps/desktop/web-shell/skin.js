@@ -18,6 +18,42 @@
   let scheduled = false
   let nativeDark
   let theme = readTheme()
+  let updateState
+
+  function syncUpdateButton() {
+    const button = document.querySelector('[data-zl-update]')
+    if (!button) return
+    button.hidden = !updateState
+    if (!updateState) return
+    const labels = {
+      idle: '检查客户端更新',
+      current: `已是最新版本 ${updateState.currentVersion}，点击重新检查`,
+      unsupported: '当前为源码运行版，安装正式客户端后可自动更新',
+      checking: '正在检查更新…',
+      downloading: `正在下载 ${updateState.version} · ${updateState.percent}%`,
+      downloaded: `版本 ${updateState.version} 已就绪，重启安装`,
+      installing: '正在启动更新安装…',
+      error: updateState.errorCode === 'integrity' ? '更新包校验失败，点击重新下载' : '更新失败，请检查网络后点击重试',
+    }
+    const captions = {
+      checking: '检查中', downloading: `${updateState.percent}%`, downloaded: '重启更新', installing: '安装中', error: '重试更新',
+    }
+    button.title = labels[updateState.status] ?? '检查客户端更新'
+    button.setAttribute('aria-label', button.title)
+    button.dataset.state = updateState.status
+    button.disabled = ['checking', 'downloading', 'installing', 'unsupported'].includes(updateState.status)
+    setText(button, '[data-zl-update-label]', captions[updateState.status] ?? '')
+  }
+
+  async function requestUpdate() {
+    try {
+      if (updateState.status === 'downloaded') await window.zhiliuUpdates.install()
+      else await window.zhiliuUpdates.check()
+    } catch (error) {
+      updateState = { ...updateState, status: 'error', errorCode: 'network' }
+      syncUpdateButton()
+    }
+  }
 
   function readTheme() {
     try {
@@ -87,6 +123,10 @@
         <span class="zl-status-dot" aria-hidden="true"></span>
         <span>企业云空间</span>
       </div>
+      <button type="button" class="zl-update-button" data-zl-update hidden>
+        <svg width="18" height="18" aria-hidden="true" focusable="false"><use href="#dsw-icon-download-outline-regular"></use></svg>
+        <span data-zl-update-label aria-live="polite"></span>
+      </button>
       <button type="button" class="zl-theme-toggle" data-zl-theme-toggle aria-label="切换到夜间模式" title="切换到夜间模式">
         <svg class="zl-theme-icon-light" width="18" height="18" aria-hidden="true" focusable="false"><use href="#dsw-icon-light-outline-regular"></use></svg>
         <svg class="zl-theme-icon-dark" width="18" height="18" aria-hidden="true" focusable="false"><use href="#dsw-icon-dark-outline-regular"></use></svg>
@@ -95,6 +135,7 @@
     header.querySelector('[data-zl-theme-toggle]').addEventListener('click', () => {
       selectTheme(theme === 'dark' ? 'light' : 'dark')
     })
+    header.querySelector('[data-zl-update]').addEventListener('click', requestUpdate)
     return header
   }
 
@@ -164,6 +205,7 @@
     }
     syncSidebarAlignment(header, frame)
     syncHeader(header)
+    syncUpdateButton()
     applyTheme()
   }
 
@@ -204,6 +246,22 @@
   }
 
   function boot() {
+    if (window.zhiliuUpdates) {
+      let received = false
+      const unsubscribe = window.zhiliuUpdates.onState(state => {
+        received = true
+        updateState = state
+        syncUpdateButton()
+      })
+      window.addEventListener('pagehide', unsubscribe, { once: true })
+      window.zhiliuUpdates.getState().then(state => {
+        if (!received) updateState = state
+        syncUpdateButton()
+      }).catch(error => {
+        if (!received) updateState = { status: 'error', errorCode: 'network' }
+        syncUpdateButton()
+      })
+    }
     window.addEventListener('storage', (event) => {
       if (event.key !== THEME_KEY && event.key !== null) return
       theme = readTheme()

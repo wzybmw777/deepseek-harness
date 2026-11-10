@@ -3,5 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "description": "Electron shell that loads the same enterprise web UI used by the browser.",
-  "main": "main.cjs"
+  "main": "main.cjs",
+  "scripts": {
+    "test": "node --test tests/*.spec.cjs",
+    "package:win": "electron-builder --config electron-builder.cjs --win nsis --x64 --publish never",
+    "package:dir": "electron-builder --config electron-builder.cjs --win --x64 --dir --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.17.0"
+  }
 }
