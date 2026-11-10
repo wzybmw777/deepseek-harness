@@ -81,23 +81,52 @@ export class ClientEntries {
    * plugin) is logged and stays an inactive entry, so one row cannot abort startup before the boot audit.
    * @param loader - Page Loader, already configured with the module system.
    * @param manifest - Initial roster audited by the boot caller.
+   * @param initial - Optional entry ids to create first; omitted creates the complete roster.
    * @returns after initial entries and their activation settle; boot owns its activation audit.
    */
-  start(loader: Loader, manifest: BootManifest): Promise<void> {
+  start(loader: Loader, manifest: BootManifest, initial?: Iterable<string>): Promise<void> {
     if (this.loader !== undefined) throw new Error('client-modules: entries already started')
     this.loader = loader
     this.desired = manifest
+    const selected = initial === undefined ? undefined : new Set(initial)
     loader.ctx.effect(() => () => {
       this.stopped = true
       this.generation++
       return this.queue
     }, 'client-modules: entry reconciliation')
     return this.enqueue(async () => {
-      await Promise.all(this.desired.plugins.map(async ({ id }) => {
+      const rows = selected === undefined
+        ? this.desired.plugins
+        : this.desired.plugins.filter(({ id }) => selected.has(id))
+      await Promise.all(rows.map(async ({ id }) => {
         await this.create(loader, id).catch((error: unknown) => { loader.ctx.logger.error(error) })
       }))
       await loader.await()
-      for (const row of this.modules.manifest.modules) this.revisions.set(row.id, row.rev)
+      for (const row of this.modules.manifest.modules) {
+        if (selected === undefined || selected.has(row.id)) this.revisions.set(row.id, row.rev)
+      }
+    })
+  }
+
+  /**
+   * Create and settle entries deferred from the initial boot set.
+   * @param ids - Entry names to activate against the current desired manifest.
+   * @returns after the newly created entries settle.
+   */
+  activate(ids: Iterable<string>): Promise<void> {
+    const loader = this.loader
+    if (loader === undefined) throw new Error('client-modules: entries have not started')
+    const selected = new Set(ids)
+    return this.enqueue(async () => {
+      const manifest = this.desired
+      const rows = manifest.plugins.filter(({ id }) => selected.has(id) && !this.managed.has(id))
+      await Promise.all(rows.map(async ({ id }) => {
+        await this.create(loader, id).catch((error: unknown) => { loader.ctx.logger.error(error) })
+      }))
+      await loader.await()
+      for (const row of manifest.modules) {
+        if (selected.has(row.id)) this.revisions.set(row.id, row.rev)
+      }
     })
   }
 

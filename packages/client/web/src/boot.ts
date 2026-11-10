@@ -79,11 +79,12 @@ export class AppWebEntry {
       })
       this.manifest = this.modules.manifest
 
-      const prefetching = this.prefetchImmediateTier()
+      // Prefetch is best-effort and shares in-flight bundle arrivals with the
+      // Loader. Starting it concurrently avoids adding a serialized network
+      // round trip before the first UI plugin can activate.
+      void this.prefetchImmediateTier()
       const ctx = new Context()
       this.ctx = ctx
-      this.page.setTotal(this.manifest.plugins.length)
-      await prefetching
       await bootClient({
         ctx,
         modules: this.modules,
@@ -92,13 +93,18 @@ export class AppWebEntry {
         onEntryState: (name, state) => {
           if (state !== 'failed') this.page.setState(name, state)
         },
+        // Mount the essential workspace as soon as its UI dependency closure
+        // is active. Slower, non-blocking plugins keep activating afterwards
+        // and contribute their slots when they arrive.
+        onReady: async () => {
+          // The shell owns the one watcher that keeps Electron's window drag rects in
+          // step with the rows that own them (electron#32341), so no chrome row has to
+          // know that trap. It installs before the first mount, so the surface the
+          // renderer draws is the one the first frame measures.
+          this.stopDragRecall = installWindowDragRecall({ document: this.container.ownerDocument })
+          await mountClient(ctx, this.container)
+        },
       })
-      // The shell owns the one watcher that keeps Electron's window drag rects in
-      // step with the rows that own them (electron#32341), so no chrome row has to
-      // know that trap. It installs before the first mount, so the surface the
-      // renderer draws is the one the first frame measures.
-      this.stopDragRecall = installWindowDragRecall({ document: this.container.ownerDocument })
-      await mountClient(ctx, this.container)
     } catch (reason) {
       console.error(reason)
       if (onFailure !== undefined) onFailure(reason)

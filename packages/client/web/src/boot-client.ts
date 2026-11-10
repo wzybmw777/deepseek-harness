@@ -42,7 +42,18 @@ export interface ClientBootOptions {
   readonly manifest: BootManifest
   /** Per-entry state reporting (the boot page); omitted when no one renders progress. */
   readonly onEntryState?: (name: string, state: EntryStateLabel) => void
+  /** Mount callback after the essential UI closure is active, before deferred plugins finish. */
+  readonly onReady?: () => void | Promise<void>
 }
+
+/** Entries that make the first frame usable; progressive boot waits only for this closure. */
+const progressiveRootEntryNames = [
+  '@deepseek-ai/dsh-client-ui-renderer',
+  '@deepseek-ai/dsh-client-ui-layout',
+  '@deepseek-ai/dsh-client-ui-session',
+  '@deepseek-ai/dsh-client-ui-chat',
+  '@deepseek-ai/dsh-client-ui-sidebar',
+] as const
 
 /**
  * Compose the client: `ctx.plugin(Loader)`, `loader.internal = modules`, one
@@ -66,15 +77,52 @@ export async function bootClient(options: ClientBootOptions): Promise<void> {
     onEntryState?.(entry.options.name, STATE_LABELS[entry.fiber.state])
   })
 
-  const rows = manifest.plugins.map(row => row.id)
+  const initial = options.onReady === undefined ? undefined : progressiveEntryNames(manifest)
+  const rows = manifest.plugins
+    .filter(row => initial === undefined || initial.has(row.id))
+    .map(row => row.id)
   for (const name of rows) onEntryState?.(name, 'loading')
-  await options.modules.entries.start(loader, manifest)
+  await options.modules.entries.start(loader, manifest, initial)
   for (const entry of loader.entries()) {
     if (entry.fiber === undefined) onEntryState?.(entry.options.name, 'failed')
   }
 
   await loader.await()
   await assertEntriesActive(ctx, options.modules)
+  if (initial === undefined || options.onReady === undefined) {
+    await options.onReady?.()
+    return
+  }
+
+  await options.onReady()
+  const deferred = manifest.plugins
+    .filter(row => !initial.has(row.id))
+    .map(row => row.id)
+  if (deferred.length === 0) return
+  for (const name of deferred) onEntryState?.(name, 'loading')
+  await options.modules.entries.activate(deferred)
+  await loader.await()
+  await assertEntriesActive(ctx, options.modules)
+}
+
+/**
+ * Select the essential UI dependency closure when the full application frame
+ * is present. Returns undefined for partial rosters so test carriers and
+ * standalone embedders keep the original all-at-once boot semantics.
+ */
+function progressiveEntryNames(manifest: BootManifest): Set<string> | undefined {
+  const byId = new Map(manifest.plugins.map(row => [row.id, row]))
+  if (!progressiveRootEntryNames.every(name => byId.has(name))) return undefined
+  const selected = new Set<string>()
+  const visit = (name: string): void => {
+    if (selected.has(name)) return
+    const row = byId.get(name)
+    if (row === undefined) return
+    selected.add(name)
+    for (const dependency of row.inject) visit(dependency)
+  }
+  for (const name of requiredClientEntryNames) visit(name)
+  return selected
 }
 
 /**

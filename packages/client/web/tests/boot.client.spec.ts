@@ -65,9 +65,8 @@ describe('bootstrap failure rendering', () => {
     const failure = vi.fn()
     await entry.run(failure)
     expect(failure).toHaveBeenCalledWith(new Error('web boot: window.__ModuleLoader__ bootstrap facade is missing'))
-    expect(container.textContent).toContain('Loading plugins')
-    expect(container.textContent).not.toContain('Failed to load plugins')
-    expect(container.querySelector('[data-dsh-boot-spinner]')).not.toBeNull()
+    expect(container.textContent).toBe('')
+    expect(container.querySelector('[data-dsh-boot-spinner]')).toBeNull()
     await entry.dispose()
   })
 
@@ -92,11 +91,11 @@ describe('bootstrap failure rendering', () => {
       if (carrier) {
         expect(report).toHaveBeenCalledOnce()
         expect(String(report.mock.calls[0]![0])).toContain(`${REQUIRED_ID} (required): failed: Error: plugin activation failed`)
-        expect(container.querySelector('[data-dsh-boot-spinner]')).not.toBeNull()
+        expect(container.querySelector('[data-dsh-boot-spinner]')).toBeNull()
         expect(container.textContent).not.toContain('工作台加载失败')
       } else {
         expect(report).not.toHaveBeenCalled()
-        expect(container.textContent).toContain('Failed to load plugins')
+        expect(container.textContent).toContain('工作台加载失败')
         expect(container.textContent).toContain(`${REQUIRED_ID} (required): failed: Error: plugin activation failed`)
       }
     } finally {
@@ -135,7 +134,7 @@ describe('bootstrap failure rendering', () => {
       expect(mounted).toHaveBeenCalledExactlyOnceWith(container)
       expect(report).not.toHaveBeenCalled()
       expect(warn).toHaveBeenCalledExactlyOnceWith('web boot: warning: 1 entry did not activate\nbroken: failed: Error: plugin activation failed')
-      expect(container.textContent).not.toContain('Failed to load plugins')
+      expect(container.textContent).not.toContain('工作台加载失败')
     } finally {
       await entry.dispose()
     }
@@ -305,6 +304,77 @@ describe('plugin activation', () => {
     expect(container.textContent).toBe('mounted')
     await entry.dispose()
   })
+
+  it('mounts the essential workspace before deferred plugins settle', async () => {
+    const events: string[] = []
+    const slow = Promise.withResolvers<undefined>()
+    const container = document.createElement('div')
+    document.body.append(container)
+    const target = installFacade()
+    const roots = [
+      '@deepseek-ai/dsh-client-ui-renderer',
+      '@deepseek-ai/dsh-client-ui-layout',
+      '@deepseek-ai/dsh-client-ui-session',
+      '@deepseek-ai/dsh-client-ui-chat',
+      '@deepseek-ai/dsh-client-ui-sidebar',
+    ]
+    const entries: WebBootEntry[] = [
+      ...roots.map(id => ({ id, url: `/${id}.js`, rev: '1' })),
+      { id: 'slow', url: '/slow.js', rev: '1' },
+    ]
+    win.__DSH_BOOT__ = {
+      rev: 'graph',
+      entries,
+      batches: [{ phase: 'application', url: '/application.js', rev: 'batch', entries: entries.map(row => row.id) }],
+    }
+    const registrations = new Map<string, ClientBundleRegistration>(roots.map(id => [id, {
+      id,
+      factory: () => ({ apply: () => {} }),
+    }]))
+    registrations.set('@deepseek-ai/dsh-client-ui-renderer', {
+      id: '@deepseek-ai/dsh-client-ui-renderer',
+      factory: () => ({
+        apply: (ctx: Context) => {
+          ctx.reflect.provide('uiRenderer', {
+            mount: (element: HTMLElement) => {
+              events.push('mount')
+              element.textContent = 'mounted'
+              return () => {}
+            },
+          })
+        },
+      }),
+    })
+    registrations.set('slow', {
+      id: 'slow',
+      factory: () => ({
+        apply: async () => {
+          events.push('slow:start')
+          await slow.promise
+          events.push('slow:end')
+        },
+      }),
+    })
+    const entry = new AppWebEntry(container, {
+      loadBundle: async (url) => {
+        if (url !== '/application.js') throw new Error(`missing fixture batch ${url}`)
+        for (const registration of registrations.values()) target.load(registration)
+      },
+    })
+    let settled = false
+    const boot = entry.run().then(() => { settled = true })
+    try {
+      await vi.waitFor(() => { expect(events).toEqual(['mount', 'slow:start']) })
+      expect(settled).toBe(false)
+      slow.resolve(undefined)
+      await boot
+      expect(events).toEqual(['mount', 'slow:start', 'slow:end'])
+    } finally {
+      slow.resolve(undefined)
+      await boot
+      await entry.dispose()
+    }
+  })
 })
 
 it('draws the shared boot page before Host injections and resumes without replacing the document', async () => {
@@ -318,8 +388,8 @@ it('draws the shared boot page before Host injections and resumes without replac
   const boot = entry.run()
   try {
     const page = container.querySelector('[data-dsh-boot]')
-    const spinner = container.querySelector('[data-dsh-boot-spinner]')
-    expect(spinner).not.toBeNull()
+    expect(container.querySelector('[data-dsh-boot-spinner]')).toBeNull()
+    expect(container.textContent).toBe('')
     await Promise.resolve()
     expect(create).not.toHaveBeenCalled()
     expect(error).not.toHaveBeenCalled()
