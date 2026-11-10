@@ -279,36 +279,30 @@
   flex: none;
   width: calc(14px + var(--dsh-content-font-delta, 0px));
   height: calc(14px + var(--dsh-content-font-delta, 0px));
-  /* The fixed footprint contains the animation's layout and paint. */
+  /* The fixed footprint keeps the status row from shifting as the dot pulses. */
   contain: strict;
   overflow: hidden;
 }
 
-.runningWhaleAnimated {
-  display: none;
-  position: absolute;
-  inset: 0;
+.runningDot {
+  width: 6px;
+  height: 6px;
+  margin: auto;
+  border-radius: 999px;
+  background: currentColor;
+  animation: running-dot 900ms ease-in-out infinite alternate;
 }
 
-.runningWhaleStill {
-  display: initial;
-}
-
-@supports (mask-mode: alpha) and (mask-image: url('')) {
-  @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
-    .runningWhaleAnimated {
-      display: block;
-      background: currentColor;
-      mask: url('../assets/running-whale@2x.png') center / 100% 100% no-repeat;
-      mask-mode: alpha;
-      /* Keep animated-mask repaints on an icon-sized composited layer. */
-      will-change: transform;
-    }
-
-    .runningWhaleStill {
-      display: none;
-    }
+@media (prefers-reduced-motion: reduce) {
+  .runningDot {
+    animation: none;
+    opacity: 0.75;
   }
+}
+
+@keyframes running-dot {
+  from { opacity: 0.35; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .openError {

@@ -4710,10 +4710,11 @@ describe('ChatView', () => {
     expect([...column.children].filter(child => !child.hasAttribute('data-text-interaction-surface')).at(-1)).toBe(status)
     expect(within(status as HTMLElement).getByRole('status').textContent).toBe('深度求索中')
     expect(status?.lastElementChild?.textContent).toBe('深度求索中')
-    const icon = status?.querySelector('svg')?.parentElement
+    const icon = status?.lastElementChild?.firstElementChild
     expect(icon?.getAttribute('aria-hidden')).toBe('true')
+    expect(icon?.children).toHaveLength(1)
     expect(icon?.firstElementChild?.tagName).toBe('SPAN')
-    expect(icon?.querySelectorAll('path')).toHaveLength(1)
+    expect(icon?.querySelector('svg')).toBeNull()
     expect(icon?.getAttribute('style')).toBeNull()
     expect(status?.querySelector('animate')).toBeNull()
     // The running bit clears before the Turn closes: the status keeps its slot unseen and unannounced.
