@@ -6,6 +6,15 @@ const { JSDOM } = require('jsdom')
 
 const source = readFileSync(path.join(__dirname, '../skin.js'), 'utf8')
 const preload = readFileSync(path.join(__dirname, '../preload.cjs'), 'utf8')
+const skinCss = readFileSync(path.join(__dirname, '../skin.css'), 'utf8')
+const mainSource = readFileSync(path.join(__dirname, '../main.cjs'), 'utf8')
+
+test('uses a 40px hidden title bar with native overlay controls', () => {
+  assert.match(mainSource, /titleBarStyle: 'hidden'/)
+  assert.match(mainSource, /titleBarOverlay: \{ color: '#fcfdff', symbolColor: '#172338', height: 40 \}/)
+  assert.match(skinCss, /--zl-topbar-height: 40px/)
+  assert.match(skinCss, /-webkit-app-region: drag/)
+})
 
 async function settle(window) {
   await new Promise(resolve => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)))
@@ -60,7 +69,7 @@ test('switches the whole palette and restores the saved selection on a new page'
   assert.equal(reopened.document.body.hasAttribute('data-ds-dark-theme'), false)
 })
 
-test('keeps the desktop selection during native theme updates and restores native appearance on exit', async context => {
+test('keeps the desktop selection and shows a chrome-only bar outside the workspace', async context => {
   const window = await openPage(context)
   window.document.body.setAttribute('data-ds-dark-theme', '')
   await settle(window)
@@ -68,9 +77,10 @@ test('keeps the desktop selection during native theme updates and restores nativ
   window.history.replaceState(null, '', '/enterprise/admin')
   window.document.querySelector('._7kFT7W_frame').remove()
   await settle(window)
-  assert.equal(window.document.querySelector('#zhiliu-enterprise-header'), null)
-  assert.equal(window.document.documentElement.hasAttribute('data-zl-theme'), false)
-  assert.equal(window.document.body.hasAttribute('data-ds-dark-theme'), true)
+  const header = window.document.querySelector('#zhiliu-enterprise-header')
+  assert.equal(header?.hasAttribute('data-zl-chrome-only'), true)
+  assert.equal(window.document.documentElement.dataset.zlTheme, 'light')
+  assert.equal(window.document.body.hasAttribute('data-ds-dark-theme'), false)
 })
 
 test('switches in memory when storage is unavailable', async context => {
@@ -140,7 +150,7 @@ test('keeps live quota data and its billing link in the page without copying it 
   assert.equal(window.document.body.textContent.includes('320万'), false)
 })
 
-test('mirrors desktop appearance to native chrome and falls back to the page theme on exit', async context => {
+test('mirrors desktop appearance to native chrome across non-workspace pages', async context => {
   const window = await openPage(context)
   const sent = []
   window.require = () => ({ contextBridge: { exposeInMainWorld() {} }, ipcRenderer: { send: (...args) => sent.push(args) } })
@@ -153,7 +163,7 @@ test('mirrors desktop appearance to native chrome and falls back to the page the
   window.document.documentElement.setAttribute('data-ds-theme-source', 'light')
   window.document.querySelector('._7kFT7W_frame').remove()
   await settle(window)
-  assert.deepEqual(sent.at(-1), ['zhiliu:appearance', 'light'])
+  assert.deepEqual(sent.at(-1), ['zhiliu:appearance', 'dark'])
 })
 
 test('labels console startup without changing workspace launch or keeping a stale loading overlay', async context => {
@@ -174,7 +184,7 @@ test('labels console startup without changing workspace launch or keeping a stal
   assert.equal(window.document.querySelector('[data-zl-loading]'), null)
 })
 
-test('tracks the admin theme for native chrome without a workspace header', async context => {
+test('follows the page theme for native chrome on pages without a workspace', async context => {
   const window = await openPage(context)
   const sent = []
   window.require = () => ({ contextBridge: { exposeInMainWorld() {} }, ipcRenderer: { send: (...args) => sent.push(args) } })

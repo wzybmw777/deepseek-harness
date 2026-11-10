@@ -64,7 +64,23 @@ ipcMain.on('zhiliu:appearance', (event, theme) => {
   if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame) return
   if (!isCloudUrl(event.senderFrame.url) || !['light', 'dark', 'system'].includes(theme)) return
   nativeTheme.themeSource = theme
+  applyTitleBarOverlay(theme)
 })
+
+/** Paint the native window controls into the 40px app bar. */
+function applyTitleBarOverlay(theme) {
+  if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return
+  const dark = theme === 'dark' || (theme === 'system' && nativeTheme.shouldUseDarkColors)
+  try {
+    mainWindow.setTitleBarOverlay({
+      color: dark ? '#141922' : '#fcfdff',
+      symbolColor: dark ? '#e6edf7' : '#172338',
+      height: 40,
+    })
+  } catch (error) {
+    console.warn('zhiliu web shell: title bar overlay unavailable', error)
+  }
+}
 
 function isCloudUrl(value) {
   try {
@@ -101,6 +117,8 @@ function createWindow() {
     show: false,
     title: '织流',
     backgroundColor: '#ffffff',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#fcfdff', symbolColor: '#172338', height: 40 },
     autoHideMenuBar: true,
     icon: ICON_PATH,
     webPreferences: {

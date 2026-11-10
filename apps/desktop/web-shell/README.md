@@ -5,6 +5,7 @@ English | [中文](README.zh.md)
 This Electron entry loads `https://dev.echoai.best/enterprise` directly, reusing the enterprise website's login, workspace, conversations, enterprise resources, quotas, and model capabilities.
 
 - `skin.css` and `skin.js` inject a dedicated “企业 AI 工作台” appearance into the workspace without replacing the underlying React functionality.
+- The window uses a 40px title bar drawn by the page: it carries the brand and the drag region, reserves space for the native Windows window buttons, and reduces to a chrome-only strip outside the workspace, where the login page and console keep their own top bars.
 - The brand header, workspace navigation, project conversation cards, and central composer use a dedicated layout and palette.
 - The header divider follows the actual edge of the expanded sidebar when it is resized or the window changes size; workspace text aligns with the conversation title. When the sidebar collapses or becomes a drawer, the header divider is hidden and the full brand text remains visible.
 - The workspace sidebar hides the “更多” entry and the “资源” group heading and disclosure arrow. Files, knowledge, and skills remain visible. The “更多” icon is also hidden in the collapsed sidebar.
@@ -13,7 +14,7 @@ This Electron entry loads `https://dev.echoai.best/enterprise` directly, reusing
 - Account information appears only in the bottom-left entry, without duplication in the header. The new-conversation button hides shortcut text while preserving the keyboard shortcut.
 - The workspace uses two semantic palettes covering text, inputs, menus, code, empty states, and hover states. The underlying theme attribute follows the desktop selection. Leaving the workspace restores the website's theme. The enterprise console retains its own appearance settings.
 - `preload.cjs` synchronizes the page theme with Electron's native title bar. The main process accepts only valid theme values from the top-level page in the current enterprise cloud window.
-- Console startup displays “正在加载企业控制台…” instead of the old mark or workspace redirect message. Startup and data-loading indicators follow the console's light and dark colors. Rotation stops when reduced motion is requested. The page's actual request state controls when loading indicators appear and disappear. Changes to the console's `data-theme` also update the native title bar.
+- Console startup displays “正在加载企业控制台…” instead of the old mark or workspace redirect message. Startup and data-loading indicators follow the console's light and dark colors. Rotation stops when reduced motion is requested. The page's actual request state controls when loading indicators appear and disappear. Outside the workspace the window bar follows the page's own theme, so a console theme change also repaints the native title bar.
 - The enterprise console sidebar brand displays only its name, without the preceding graphic. The default “织流企业 AI 工作台” becomes “企业 AI 工作台”. The name is truncated when the sidebar collapses.
 - In-app navigation is restricted to the enterprise cloud origin. External links open in the system browser.
 - Login state persists in a separate Electron session.

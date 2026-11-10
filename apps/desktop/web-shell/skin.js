@@ -16,7 +16,7 @@
   let sidebarObserver
   let sidebarElement
   let scheduled = false
-  let nativeDark
+  let chromeOnly = false
   let theme = readTheme()
   let updateState
 
@@ -66,9 +66,10 @@
 
   function applyTheme() {
     if (!document.body || !document.documentElement.hasAttribute('data-zhiliu-skin')) return
-    if (nativeDark === undefined) nativeDark = document.body.hasAttribute('data-ds-dark-theme')
-    document.documentElement.setAttribute('data-zl-theme', theme)
-    document.body.toggleAttribute('data-ds-dark-theme', theme === 'dark')
+    const pageTheme = document.documentElement.getAttribute('data-theme')
+    const effective = chromeOnly && (pageTheme === 'light' || pageTheme === 'dark') ? pageTheme : theme
+    document.documentElement.setAttribute('data-zl-theme', effective)
+    document.body.toggleAttribute('data-ds-dark-theme', effective === 'dark')
     const button = document.querySelector('[data-zl-theme-toggle]')
     if (button) {
       const label = theme === 'dark' ? '切换到日间模式' : '切换到夜间模式'
@@ -154,7 +155,8 @@
       }
     }
     const edge = sidebar?.getBoundingClientRect().right ?? 0
-    const aligned = edge > 0 && !frame.hasAttribute('data-sidebar-collapsed') && !frame.hasAttribute('data-sidebar-drawer')
+    const aligned = frame !== null && edge > 0
+      && !frame.hasAttribute('data-sidebar-collapsed') && !frame.hasAttribute('data-sidebar-drawer')
     header.toggleAttribute('data-zl-sidebar-aligned', aligned)
     if (aligned) header.style.setProperty('--zl-sidebar-edge', `${edge}px`)
     else header.style.removeProperty('--zl-sidebar-edge')
@@ -180,21 +182,7 @@
     const frame = document.querySelector(FRAME_SELECTOR)
     const existing = document.getElementById(HEADER_ID)
     const workspaceExpected = location.pathname.startsWith('/t/') && location.pathname.includes('/harness')
-
-    if (!frame && !workspaceExpected) {
-      sidebarObserver?.disconnect()
-      sidebarElement = undefined
-      existing?.remove()
-      document.documentElement.removeAttribute('data-zhiliu-skin')
-      document.documentElement.removeAttribute('data-zl-theme')
-      document.body?.classList.remove('zhiliu-enterprise')
-      if (nativeDark !== undefined) {
-        document.body?.toggleAttribute('data-ds-dark-theme', nativeDark)
-        nativeDark = undefined
-      }
-      return
-    }
-
+    chromeOnly = !frame && !workspaceExpected
     document.documentElement.setAttribute('data-zhiliu-skin', MARKER)
     document.body?.classList.add('zhiliu-enterprise')
 
@@ -203,6 +191,7 @@
       header = createHeader()
       document.body?.prepend(header)
     }
+    header.toggleAttribute('data-zl-chrome-only', chromeOnly)
     syncSidebarAlignment(header, frame)
     syncHeader(header)
     syncUpdateButton()
@@ -224,6 +213,7 @@
       const pageChanged = records.some((record) => {
         if (record.type === 'attributes') {
           if (record.target.matches?.(FRAME_SELECTOR)) return true
+          if (record.target === document.documentElement && record.attributeName === 'data-theme') return true
           return record.target === document.body
             && document.documentElement.hasAttribute('data-zhiliu-skin')
             && document.body.hasAttribute('data-ds-dark-theme') !== (theme === 'dark')
@@ -240,7 +230,7 @@
       childList: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ['data-ds-dark-theme', 'data-sidebar-collapsed', 'data-sidebar-drawer'],
+      attributeFilter: ['data-ds-dark-theme', 'data-theme', 'data-sidebar-collapsed', 'data-sidebar-drawer'],
       subtree: true,
     })
   }
