@@ -17,6 +17,9 @@ test('preload exposes fixed update actions and never passes the Electron event t
   vm.runInNewContext(readFileSync(path.join(__dirname, '../preload.cjs'), 'utf8'), {
     require: () => ({ ipcRenderer, contextBridge: { exposeInMainWorld: (name, value) => { assert.equal(name, 'zhiliuUpdates'); bridge = value } } }),
     window: { addEventListener() {} },
+    document: { documentElement: null },
+    MutationObserver: class { observe() {} disconnect() {} },
+    localStorage: { getItem: () => null },
   })
   bridge.getState()
   bridge.check('https://untrusted.test/')
@@ -57,9 +60,10 @@ test('update control tracks progress, retry and restart in both themes without a
   notify({ status: 'downloading', version: '0.2.0', percent: 48 })
   resolveInitial({ status: 'idle' })
   await Promise.resolve()
+  assert.equal(button.hidden, false)
+  assert.equal(button.textContent.trim(), '48%')
   assert.equal(button.dataset.state, 'downloading')
   assert.equal(button.disabled, true)
-  assert.equal(button.textContent.trim(), '48%')
   notify({ status: 'error', errorCode: 'integrity' })
   assert.match(button.title, /校验失败/)
   button.click()
@@ -74,5 +78,8 @@ test('update control tracks progress, retry and restart in both themes without a
   notify({ status: 'current', currentVersion: '0.2.0' })
   assert.equal(button.hidden, false)
   assert.match(button.title, /已是最新版本 0.2.0/)
-  assert.equal(button.textContent.trim(), '')
+  assert.equal(button.textContent.trim(), '已是最新')
+  notify({ status: 'idle' })
+  assert.equal(button.getAttribute('aria-label'), '检查客户端更新')
+  assert.equal(button.textContent.trim(), '检查更新')
 })

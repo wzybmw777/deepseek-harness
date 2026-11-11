@@ -36,7 +36,8 @@
       error: updateState.errorCode === 'integrity' ? '更新包校验失败，点击重新下载' : '更新失败，请检查网络后点击重试',
     }
     const captions = {
-      checking: '检查中', downloading: `${updateState.percent}%`, downloaded: '重启更新', installing: '安装中', error: '重试更新',
+      idle: '检查更新', current: '已是最新', checking: '检查中', downloading: `${updateState.percent}%`,
+      downloaded: '重启更新', installing: '安装中', error: '重试更新',
     }
     button.title = labels[updateState.status] ?? '检查客户端更新'
     button.setAttribute('aria-label', button.title)

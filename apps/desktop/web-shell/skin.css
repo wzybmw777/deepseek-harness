@@ -1479,16 +1479,22 @@ html[data-zl-theme="dark"] .zl-theme-icon-dark {
   line-height: 1.3;
 }
 
-#zhiliu-enterprise-header .zl-theme-toggle,
-#zhiliu-enterprise-header .zl-update-button {
+#zhiliu-enterprise-header .zl-theme-toggle {
   width: 28px;
   height: 28px;
   min-width: 28px;
   padding: 0;
 }
 
-#zhiliu-enterprise-header .zl-update-button span {
-  display: none;
+/* Keep the update control readable at caption height: its label carries the
+   state (检查更新, progress, 重启更新) instead of hiding behind an icon. */
+#zhiliu-enterprise-header .zl-update-button {
+  width: auto;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 9px;
+  gap: 5px;
+  font-size: 11px;
 }
 
 #zhiliu-enterprise-header[data-zl-chrome-only] .zl-topbar-context,
