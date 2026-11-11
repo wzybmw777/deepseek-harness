@@ -146,7 +146,7 @@ export class ProductRuntime implements ProductRunner {
     const task = this.run(teamId, userId, jobId, product).catch((error: unknown) => {
       this.warn(error instanceof Error ? error : new Error(String(error)))
       this.products.updateJob(jobId, this.stop.signal.aborted ? 'interrupted' : 'failed', null, null,
-        error instanceof HttpError ? error.message : '任务未完成，请稍后重新提交；已产生的用量按实际扣费，待核对的费用会保留预留积分。')
+        error instanceof HttpError ? error.message : '任务未完成，请稍后重新提交。')
     }).finally(() => { this.active.delete(jobId) })
     this.active.set(jobId, task)
   }
@@ -190,8 +190,7 @@ export class ProductRuntime implements ProductRunner {
       responseBody = await boundedResponse(response)
       const usage = parseProviderUsage(channel.wireProtocol, responseBody)
       this.products.settle(attempt, responseBody, usage ?? null); settled = true
-      if (!response.ok) throw new HttpError(502, '模型服务暂时繁忙，请稍后重新提交；预留费用待管理员核对', 'provider_failed')
-      if (!usage) throw new HttpError(502, '模型服务未返回完整用量，任务已停止，预留积分待管理员核对', 'usage_missing')
+      if (!response.ok) throw new HttpError(502, '模型服务暂时繁忙，请稍后重新提交。', 'provider_failed')
     } catch (error) {
       if (!settled) this.products.settle(attempt, responseBody || 'Request interrupted before complete provider response', null)
       throw error
@@ -201,7 +200,7 @@ export class ProductRuntime implements ProductRunner {
     const clean = text.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')
     let payload: unknown
     try { payload = JSON.parse(clean) }
-    catch { throw new HttpError(502, '演示文稿内容格式异常，请重新生成；本次已产生模型用量', 'deck_invalid') }
+    catch { throw new HttpError(502, '演示文稿内容格式异常，请重新生成。', 'deck_invalid') }
     if (!record(payload) || !Array.isArray(payload.slides) || payload.slides.length < 3 || payload.slides.length > 6
       || !payload.slides.every(item => record(item) && typeof item.svg === 'string' && item.svg.length < 200_000)) throw new HttpError(502, '演示文稿未通过结构校验，请重新生成', 'deck_invalid')
     const directory = join(this.config.root, jobId)

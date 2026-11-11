@@ -15,6 +15,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-web-app'
 import z from '@deepseek-ai/schemastery'
 import { EnterpriseApi } from './api.ts'
+import { loadAgentCatalogSeed } from './agent-catalog.ts'
 import { ProductApi } from './product-api.ts'
 import { ProductStore } from './product-store.ts'
 import { ProductRuntime } from './product-runtime.ts'
@@ -51,6 +52,8 @@ export interface Config {
   readonly productFeilianTimeoutMs: number
   /** Installed PPT Master Skill directory; omit to keep PPT products unavailable. */
   readonly productPptSkillRoot?: string
+  /** Shipped agent catalog file; omit to read the agent-hub bundle beside this package. */
+  readonly productAgentCatalog?: string
   /** Python environment containing the PPT Master exporter dependencies. */
   readonly productPython: string
   /** Timeout for a single product model request. */
@@ -129,6 +132,7 @@ export const Config: z<Config> = z.object({
   productFeilianEnterpriseUrl: z.string(),
   productFeilianTimeoutMs: z.natural().default(120_000),
   productPptSkillRoot: z.string(),
+  productAgentCatalog: z.string(),
   productPython: z.string().default('python3'),
   productModelTimeoutMs: z.natural().default(240_000),
   productExportTimeoutMs: z.natural().default(180_000),
@@ -433,7 +437,8 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   }, 'enterprise-console: runtimes and durable storage')
   const api = await EnterpriseApi.create({
     product: await (async () => {
-      products = await ProductStore.open(config.dataDir)
+      const agentCatalog = await loadAgentCatalogSeed(config.productAgentCatalog, (message) => { ctx.logger.warn(message) })
+      products = await ProductStore.open(config.dataDir, agentCatalog)
       productRunner = await ProductRuntime.open(products, opened.store, {
         root: join(config.dataDir, 'product-jobs'),
         ...(config.productPptSkillRoot === undefined ? {} : { skillRoot: config.productPptSkillRoot }),

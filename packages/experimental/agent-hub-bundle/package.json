@@ -1,0 +1,53 @@
+{
+  "name": "@deepseek-ai/dsh-agent-hub-bundle",
+  "description": "First-party enterprise agent hub: the agent catalog seed and the team resource workbench surfaces",
+  "version": "0.2.2-rc.1",
+  "icon": "./icon.svg",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/experimental/agent-hub-bundle"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./catalog/*.json": "./catalog/*.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "NOTICE",
+    "icon.svg",
+    "locale/*.json",
+    "catalog/*.json",
+    "docs",
+    "lib/index.js",
+    "cordis.patch.yml",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-client-ui-enterprise-resources": "workspace:*"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

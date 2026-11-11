@@ -20,10 +20,6 @@ const TOKEN_LINE = /^dsh web:\s+(\S+)\s*$/u
 const TENANT_LABEL = 'io.deepseek.enterprise.tenant'
 const NODE_DESTINATION = '/opt/node24'
 const NODE_BINARY = `${NODE_DESTINATION}/bin/node`
-const RESOURCE_PLUGIN_ENTRY = fileURLToPath(new URL(
-  '../../client-ui-enterprise-resources/lib/index.js',
-  import.meta.url,
-))
 const TENANT_TOOL_POLICY_ENTRY = fileURLToPath(new URL('../lib/tenant-tool-policy.js', import.meta.url))
 
 /** Deployment settings for the tenant container pool. */
@@ -143,13 +139,11 @@ export function redactTenantRuntimeText(value: string): string {
 /**
  * Build the per-team Loader patch applied after the shared Web profile.
  * @param documents - private tenant documents directory exposed to the workspace controller.
- * @param resourcePluginEntry - built resource browser entry, mounted read-only beside the tenants.
  * @param toolPolicyPluginEntry - built tenant tool-policy entry.
- * @returns YAML with the workspace root and the in-workbench resource plugin.
+ * @returns YAML with the workspace root and the tenant product plugins.
  */
 export function tenantRuntimePatch(
   documents: string,
-  resourcePluginEntry = RESOURCE_PLUGIN_ENTRY,
   toolPolicyPluginEntry = TENANT_TOOL_POLICY_ENTRY,
 ): string {
   return [
@@ -165,8 +159,6 @@ export function tenantRuntimePatch(
     `      name: ${JSON.stringify(resolve(dirname(toolPolicyPluginEntry), 'tenant-product-chat.js'))}`,
     '    - id: enterprise-tenant-tool-policy',
     `      name: ${JSON.stringify(toolPolicyPluginEntry)}`,
-    '    - id: enterprise-resources-ui',
-    `      name: ${JSON.stringify(resourcePluginEntry)}`,
     '',
   ].join('\n')
 }

@@ -6,6 +6,8 @@ import type { EnterpriseCatalog } from './types.ts'
 import { BUILTIN_PLUGINS } from './plugin-catalog.ts'
 
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/u
+/** Third-party bundles replaced by the first-party agent catalog. */
+const RETIRED_BUNDLES: ReadonlySet<string> = new Set(['@michengai/dsh-agency-agents'])
 
 /** One enterprise plugin package resolved from the shared read-only plugin root. */
 export interface TenantPluginPackage {
@@ -32,11 +34,13 @@ interface ProfileManifest {
 
 /** Build the tenant policy from durable records and the shared plugin installation. */
 export function tenantPluginPolicy(catalog: Pick<EnterpriseCatalog, 'plugins'>, pluginRoot: string): TenantPluginPolicy {
-  const enabled = new Set(catalog.plugins.filter(plugin => plugin.enabled).map(plugin => plugin.packageName))
+  const stored = new Map(catalog.plugins.map(plugin => [plugin.packageName, plugin.enabled]))
   const builtinNames = new Set(BUILTIN_PLUGINS.map(plugin => plugin.packageName))
   return {
     managedBuiltins: [...builtinNames],
-    enabledBuiltins: BUILTIN_PLUGINS.filter(plugin => enabled.has(plugin.packageName)).map(plugin => plugin.packageName),
+    enabledBuiltins: BUILTIN_PLUGINS
+      .filter(plugin => stored.get(plugin.packageName) ?? plugin.defaultEnabled ?? false)
+      .map(plugin => plugin.packageName),
     enterprisePlugins: catalog.plugins
       .filter(plugin => plugin.scope === 'enterprise' && plugin.enabled && !builtinNames.has(plugin.packageName))
       .map(plugin => ({ packageName: plugin.packageName, directory: join(pluginRoot, 'node_modules', plugin.packageName) })),
@@ -55,6 +59,44 @@ async function writeManifest(path: string, manifest: ProfileManifest): Promise<v
 }
 
 /**
+ * Drop loader rows that mount a retired bundle. Profiles written by earlier
+ * releases keep the row after its package disappears, which otherwise leaves a
+ * dangling entry the loader has to skip.
+ */
+async function retireProfilePatch(profileDir: string): Promise<void> {
+  const path = join(profileDir, 'cordis.patch.yml')
+  let text: string
+  try {
+    text = await readFile(path, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw error
+  }
+  const lines = text.split('\n')
+  const kept: string[] = []
+  let index = 0
+  while (index < lines.length) {
+    const current = lines[index] ?? ''
+    if (!current.startsWith('- ')) {
+      kept.push(current)
+      index += 1
+      continue
+    }
+    let end = index + 1
+    while (end < lines.length && !(lines[end] ?? '').startsWith('- ')) end += 1
+    const retired = lines.slice(index, end).some((row) => {
+      const match = /^ {2}name:\s*(.*)$/u.exec(row)
+      if (match === null) return false
+      return RETIRED_BUNDLES.has((match[1] ?? '').trim().replace(/^(["'])(.*)\1$/u, '$2'))
+    })
+    if (!retired) kept.push(...lines.slice(index, end))
+    index = end
+  }
+  const next = kept.join('\n')
+  if (next !== text) await writeFile(path, next, { mode: 0o600 })
+}
+
+/**
  * Replace the enterprise-owned layers in one tenant profile while leaving its
  * other selected bundles and dependencies intact.
  * @param profileDir - writable profile directory inside the tenant home.
@@ -66,13 +108,15 @@ export async function applyTenantPluginPolicy(profileDir: string, policy: Tenant
   const previousNames = new Set((manifest.dsh?.enterprisePlugins ?? []).map(packageName))
   const dependencies: Record<string, string> = {}
   for (const [name, version] of Object.entries(manifest.dependencies ?? {})) {
-    if (!previousNames.has(name)) dependencies[name] = version
+    if (!previousNames.has(name) && !RETIRED_BUNDLES.has(name)) dependencies[name] = version
   }
 
   const nodeModules = join(profileDir, 'node_modules')
   for (const name of previousNames) await rm(join(nodeModules, name), { force: true })
+  for (const name of RETIRED_BUNDLES) await rm(join(nodeModules, name), { recursive: true, force: true })
+  await retireProfilePatch(profileDir)
 
-  const currentBundles = manifest.dsh?.profile?.bundles ?? []
+  const currentBundles = (manifest.dsh?.profile?.bundles ?? []).filter(name => !RETIRED_BUNDLES.has(name))
   const managedBuiltins = new Set(policy.managedBuiltins)
   const enterpriseNames: string[] = []
   for (const plugin of policy.enterprisePlugins) {

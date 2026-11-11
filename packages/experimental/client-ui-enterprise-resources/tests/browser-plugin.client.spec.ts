@@ -6,7 +6,6 @@ import type { ILayout, MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/cli
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
-import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -67,8 +66,8 @@ async function bench() {
     requestDraftInitialization: initializeDraft,
     for: () => ({ state: { getSnapshot: () => ({ occurrences: [] }) } }),
   } } as never)
-  const openSession = vi.fn()
-  runtime.ctx.provide('uiWorkspace', { openSession } as never)
+  const startSession = vi.fn()
+  runtime.ctx.provide('uiWorkspace', { startSession } as never)
   const workspace = await runtime.workspaces.create({ path: '/market-project' })
   await runtime.workspaces.update((state) => { state.items = [workspace] })
   const execute = vi.fn(async () => ({ ok: true, value: { result: { kind: 'success' } } }))
@@ -78,7 +77,7 @@ async function bench() {
     children: { main: { kind: 'keyed', scope: 'root' } },
   } as never, () => null)
   const mounted = await runtime.mount({ inject: [...inject], apply })
-  return { runtime, locale, selectPanel, mounted, sources, initializeDraft, openSession, execute, workspace }
+  return { runtime, locale, selectPanel, mounted, sources, initializeDraft, startSession, execute, workspace }
 }
 
 describe('enterprise resources browser half', () => {
@@ -107,44 +106,29 @@ describe('enterprise resources browser half', () => {
     expect(locale.bind(NS)('market.title')).toBe('智能体')
   })
 
-  it('opens the chosen agent with a named retained chat', async () => {
-    const { runtime, initializeDraft, openSession, workspace } = await bench()
-    const rename = vi.fn(async (title: string) => ({ ok: true as const, value: { title, seq: SessionSeq(1) } }))
-    const sessionId = await runtime.sessions.add({ id: 'market-chat', session: { rename } })
-    const create = vi.fn(async () => sessionId)
-    runtime.sessions.stubCreate(create)
+  it('opens the chosen agent in a new chat with the mention prefilled', async () => {
+    const { runtime, startSession, workspace } = await bench()
     await openProductConversation(runtime.ctx, { kind: 'agent', id: 'copy', title: '文案助手' })
-    expect(create).toHaveBeenCalledWith({ workspaceId: workspace.workspaceId })
-    expect(rename).toHaveBeenCalledWith('文案助手')
-    expect(initializeDraft).toHaveBeenCalledWith(expect.objectContaining({ sessionId }), {
-      prompt: '@文案助手 ', whenDraftExists: 'keep',
-    })
-    expect(openSession).toHaveBeenCalledWith(sessionId)
+    expect(startSession).toHaveBeenCalledWith(workspace.workspaceId, { prompt: '@文案助手 ', whenDraftExists: 'append' })
   })
 
   it('prepares the default project before creating a marketplace chat on first use', async () => {
-    const { runtime, workspace } = await bench()
+    const { runtime, workspace, startSession } = await bench()
     await runtime.workspaces.update((state) => { state.items = [] })
     runtime.workspaces.stub('initializeDefault', async () => workspace)
-    const sessionId = await runtime.sessions.add({
-      id: 'first-use-chat',
-      session: { rename: async title => ({ ok: true as const, value: { title, seq: SessionSeq(1) } }) },
-    })
-    const create = vi.fn(async () => sessionId)
-    runtime.sessions.stubCreate(create)
     await openProductConversation(runtime.ctx, { kind: 'agent', id: 'copy', title: '文案助手' })
     expect(runtime.workspaces.calls.at(-1)?.method).toBe('initializeDefault')
-    expect(create).toHaveBeenCalledWith({ workspaceId: workspace.workspaceId })
+    expect(startSession).toHaveBeenCalledWith(workspace.workspaceId, { prompt: '@文案助手 ', whenDraftExists: 'append' })
   })
 
   it('leaves creation and navigation untouched when no project is available', async () => {
-    const { runtime, openSession } = await bench()
+    const { runtime, startSession } = await bench()
     await runtime.workspaces.update((state) => { state.items = [] })
     const create = vi.spyOn(runtime.sessions, 'create')
     await expect(openProductConversation(runtime.ctx, { kind: 'agent', id: 'copy', title: '文案助手' }))
       .rejects.toThrow('Choose a project')
     expect(create).not.toHaveBeenCalled()
-    expect(openSession).not.toHaveBeenCalled()
+    expect(startSession).not.toHaveBeenCalled()
   })
 
   it('records an agent interaction through the injected Remote in the mounted plugin', async () => {
@@ -152,10 +136,10 @@ describe('enterprise resources browser half', () => {
     const { runtime, sources, execute } = await bench()
     const sessionId = await runtime.sessions.add({ id: 'agent-chat' })
     vi.spyOn(workbenchProducts, 'identity').mockResolvedValue({ user: { id: 'member' }, permissions: ['workspace.use'] })
-    vi.spyOn(workbenchProducts, 'market').mockResolvedValue({ agents: [{
-      id: 'copy', title: '文案助手', description: '', category: '文案', output: 'text', price: 0,
-      durationDays: 30, entitlement: { active: true, expiresAt: null },
-    }], wallet: { balance: 0, reserved: 0, canRun: true, canPurchase: false }, jobs: [] })
+    vi.spyOn(workbenchProducts, 'market').mockResolvedValue({
+      access: { planCode: 'team', planName: '团队版', agentLimit: 10, teams: false, unlocked: 1 },
+      agents: [{ id: 'copy', title: '文案助手', description: '', category: '文案', kind: 'agent', members: [], teamUnlocked: true, output: 'text',
+        entitlement: { active: true, expiresAt: null } }], jobs: [] })
     vi.spyOn(workbenchProducts, 'run').mockResolvedValue({ id: 'job-a' } as never)
     await runtime.sessions.using(sessionId, { source: 'testOperation' }, async (reference) => {
       const outcome = await sources[0]!.matchEnter!(

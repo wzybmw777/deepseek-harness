@@ -12,7 +12,7 @@ import { ResourceApiError } from './api.ts'
 import { marketTransaction, workbenchProducts } from './product-api.ts'
 
 type Translate = ResourcePanelProps['t']
-type Item = { kind: 'agent' | 'knowledge'; id: string; title: string; available?: boolean }
+type Item = { kind: 'agent' | 'knowledge'; id: string; title: string; alias?: string }
 
 declare module '@deepseek-ai/dsh-api-session-controller/client' {
   interface SessionReferenceSourceMap {
@@ -26,6 +26,22 @@ function reference(item: Item, sessionId: SessionId): ReferenceInsert {
   return { source: 'enterprise-products', ref: JSON.stringify({ ...item, sessionId }), label: item.title, appearance: 'session', clipboardText: `@feilian[${encodeURIComponent(item.id)}]` }
 }
 
+const RECENT_AGENTS_KEY = 'zhiliu.recentAgents'
+
+function recentAgents(): string[] {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(RECENT_AGENTS_KEY) ?? '[]') as unknown
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+  } catch { return [] }
+}
+
+function rememberAgent(id: string): void {
+  try {
+    const next = [id, ...recentAgents().filter(item => item !== id)].slice(0, 8)
+    window.localStorage.setItem(RECENT_AGENTS_KEY, JSON.stringify(next))
+  } catch { /* Browser storage is optional for ordering. */ }
+}
+
 /**
  * Start a fresh chat without overwriting another chat's draft.
  * @param ctx - browser services.
@@ -35,14 +51,7 @@ function reference(item: Item, sessionId: SessionId): ReferenceInsert {
 export async function openProductConversation(ctx: Context, item: Item): Promise<void> {
   const workspace = ctx.workspaces.list.getSnapshot().items[0] ?? await ctx.workspaces.initializeDefault()
   if (!workspace) throw new Error('Choose a project before selecting an agent')
-  const sessionId = await ctx.sessions.create({ workspaceId: workspace.workspaceId })
-  await ctx.sessions.using(sessionId, { source: 'enterpriseInteraction' }, async (reference) => {
-    const renamed = await reference.binding.session.rename(item.title)
-    if (!renamed.ok) throw new Error('Conversation title was not saved')
-    const result = ctx.conversation.input.requestDraftInitialization(reference.binding, { prompt: `${token(item)} `, whenDraftExists: 'keep' })
-    if (result === 'blocked') throw new Error('Conversation input is busy')
-    ctx.uiWorkspace.openSession(sessionId)
-  })
+  ctx.uiWorkspace.startSession(workspace.workspaceId, { prompt: `${token(item)} `, whenDraftExists: 'append' })
 }
 
 /**
@@ -89,7 +98,7 @@ export function registerProductMentions(ctx: Context, t: Translate): () => void 
             const job = await workbenchProducts.run(item.id, input, transaction.key)
             await record(session.sessionId, { kind: 'agent', jobId: job.id })
             transaction.complete()
-            window.dispatchEvent(new Event('dsh-enterprise-points-changed'))
+            window.dispatchEvent(new Event('dsh-enterprise-access-changed'))
           }
           return { kind: 'success' as const }
         })
@@ -99,10 +108,11 @@ export function registerProductMentions(ctx: Context, t: Translate): () => void 
   const items = async (kind: Item['kind']): Promise<Item[]> => {
     if (kind === 'agent') {
       const market = await workbenchProducts.market()
-      return market.agents.map(agent => ({
-        kind, id: agent.id, title: agent.title,
-        available: Boolean(agent.entitlement?.active && market.wallet.canRun),
-      }))
+      return market.agents
+        .filter(agent => agent.entitlement?.active)
+        .map(agent => ({
+          kind, id: agent.id, title: agent.title, ...(agent.alias === undefined ? {} : { alias: agent.alias }),
+        }))
     }
     const feilian = await workbenchProducts.feilian()
     return feilian.state === 'connected' ? feilian.knowledgeBases.map(library => ({ kind, id: library.id, title: library.name })) : []
@@ -116,10 +126,23 @@ export function registerProductMentions(ctx: Context, t: Translate): () => void 
         const catalog = await items(kind)
         request.signal.throwIfAborted()
         const query = request.query.toLocaleLowerCase()
-        return catalog.filter(item => item.available !== false && (request.position === 'leading' || item.kind === 'knowledge') && `${token(item)} ${item.title}`.toLocaleLowerCase().includes(query))
-          .map(item => ({ name: item.title, label: item.title, description: item.kind === 'agent' ? t('mention.agentHint') : t('mention.knowledgeHint'),
+        const recent = kind === 'agent' ? recentAgents() : []
+        const rank = (item: Item): number => {
+          const index = recent.indexOf(item.id)
+          return index === -1 ? recent.length : index
+        }
+        const matches = catalog.filter(item => (request.position === 'leading' || item.kind === 'knowledge')
+          && `${token(item)} ${item.title} ${item.alias ?? ''}`.toLocaleLowerCase().includes(query))
+          .sort((left, right) => rank(left) - rank(right))
+        return matches.slice(0, query === '' ? 20 : 30)
+          .map(item => ({
+            name: item.title,
+            label: item.title,
+            description: item.kind === 'agent' ? t('mention.agentHint') : t('mention.knowledgeHint'),
             icon: item.kind === 'agent' ? IconSkillOutlineRegular : IconDatabaseOutlineRegular,
-            section: t(item.kind === 'agent' ? 'mention.agents' : 'knowledge.feilian'), value: JSON.stringify(item) }))
+            section: t(item.kind === 'agent' ? 'mention.agents' : 'knowledge.feilian'),
+            value: JSON.stringify(item),
+          }))
           .concat(request.position === 'leading' && request.query === '' ? [
             kind === 'agent'
               ? { name: t('mention.market'), label: t('mention.market'), description: t('mention.marketHint'), icon: IconSkillOutlineRegular, section: t('mention.agents'), value: 'market' }
@@ -131,6 +154,7 @@ export function registerProductMentions(ctx: Context, t: Translate): () => void 
         if (value === 'market' || value === 'knowledge') { window.dispatchEvent(new CustomEvent('dsh-enterprise-resource-open', { detail: value })); return 'handled' }
         if (!value) return undefined
         const item = JSON.parse(value) as Item
+        if (item.kind === 'agent') rememberAgent(item.id)
         if (pick.position === 'inline') return { insert: reference(item, pick.session.sessionId) }
         return { claim: claim(item) }
       },
@@ -142,7 +166,6 @@ export function registerProductMentions(ctx: Context, t: Translate): () => void 
         const found = matches[0]
         signal.throwIfAborted()
         if (!found) return undefined
-        if (found.available === false) throw new Error(t('mention.locked'))
         if (envelope.attachments > 0) throw new Error(t('mention.attachments'))
         return { claim: claim(found) }
       },

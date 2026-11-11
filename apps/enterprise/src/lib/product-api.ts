@@ -1,38 +1,47 @@
-/** Typed client for points and curated agents. */
+/** Typed client for plan-based agent access and the curated catalog. */
 import { request } from './api.ts'
 import { publicPath } from './public-path.ts'
 
+export type AgentIcon =
+  | 'spark' | 'strategy' | 'operations' | 'brand' | 'growth' | 'marketing'
+  | 'finance' | 'organization' | 'legal' | 'image' | 'video' | 'document'
+  | 'chat' | 'knowledge'
 export interface Agent {
-  id: string; title: string; description: string; category: string; output: 'pptx' | 'text' | 'video'; price: number;
-  durationDays: number | null; entitlement: { active: boolean; expiresAt: string | null } | null
+  id: string; title: string; description: string; alias: string; group: string; category: string; icon: AgentIcon;
+  tasks: string; materials: string; deliverables: string; example: string; disclaimer: string;
+  sortOrder: number; recommended: boolean; output: 'pptx' | 'text' | 'video';
+  kind: 'agent' | 'expert' | 'team'; members: Array<{ id: string; title: string }>;
+  teamUnlocked: boolean;
+  entitlement: { active: boolean; expiresAt: string | null } | null
 }
-export interface ManagedAgent extends Omit<Agent, 'entitlement'> {
-  executor: 'ppt-master' | 'text' | 'video'; published: boolean; modelId: string; systemPrompt: string; skill: string; revision: number
+export interface ManagedAgent extends Omit<Agent, 'entitlement' | 'members' | 'teamUnlocked'> {
+  executor: 'ppt-master' | 'text' | 'video'; published: boolean; modelId: string; systemPrompt: string; skill: string; revision: number;
+  members: string[]
 }
-export interface Wallet { balance: number; reserved: number; canPurchase: boolean; canRun: boolean }
 export interface Job {
   id: string; agentId: string; title: string; state: 'queued' | 'running' | 'completed' | 'failed' | 'interrupted';
-  input: string; result: string | null; error: string | null; artifact: string | null; charged: number; createdAt: string
+  input: string; result: string | null; error: string | null; artifact: string | null; createdAt: string
 }
-export interface Market { agents: Agent[]; wallet: Wallet; jobs: Job[]; ledger: Array<{ id: string; kind: string; delta: number; note: string; createdAt: string }> }
-export interface Member { id: string; name: string; teamId: string; teamName: string; wallet: Wallet }
-export interface ProductReview { id: string; jobId: string; userId: string; teamId: string; reserved: number }
-export interface ProductAdmin { agents: ManagedAgent[]; rates: { input: number; output: number } | null; models: Array<{ id: string; name: string }>; members: Member[]; reviews: ProductReview[] }
+/** Paid-plan capability that decides which catalog entries a team may unlock. */
+export interface PlanAccess {
+  planCode: string; planName: string; agentLimit: number | null; teams: boolean; unlocked: number
+}
+export interface Market { agents: Agent[]; access: PlanAccess; jobs: Job[] }
+export interface Member { id: string; name: string; teamId: string; teamName: string }
+/** One team's paid-plan capability and current unlock count. */
+export interface TeamAccess extends PlanAccess { id: string; name: string }
+export interface ProductAdmin { agents: ManagedAgent[]; models: Array<{ id: string; name: string }>; members: Member[]; teams: TeamAccess[] }
 export interface FeilianStatus {
   available: boolean; bound: boolean; account?: string; state: 'unavailable' | 'unbound' | 'connected' | 'reauth' | 'offline';
   knowledgeBases: Array<{ id: string; name: string }>; registrationUrl?: string; enterpriseUrl?: string
 }
 
-/** Points and market operations; request keys survive uncertain client outcomes. */
+/** Market operations; request keys survive uncertain client outcomes. */
 export const productApi = {
   market: () => request<Market>('/product/market'),
   admin: () => request<ProductAdmin>('/product/admin/catalog'),
   save: (agent: ManagedAgent) => request<ManagedAgent>('/product/admin/agents', { method: 'POST', body: { ...agent } }),
-  rates: (input: number, output: number) => request('/product/admin/rates', { method: 'POST', body: { input, output } }),
-  policy: (member: Member, canPurchase: boolean, canRun: boolean) => request('/product/admin/wallet', { method: 'POST', body: { teamId: member.teamId, userId: member.id, canPurchase, canRun } }),
-  credit: (member: Member, points: number, key: string, note: string) => request('/product/admin/credit', { method: 'POST', body: { teamId: member.teamId, userId: member.id, points, key, note } }),
   grant: (member: Member, agentId: string, expiresAt: string | null, revoke: boolean) => request('/product/admin/entitlement', { method: 'POST', body: { teamId: member.teamId, userId: member.id, agentId, expiresAt, revoke } }),
-  reconcile: (id: string, inputTokens: number, outputTokens: number, note: string) => request('/product/admin/reconcile', { method: 'POST', body: { id, inputTokens, outputTokens, note } }),
   purchase: (agentId: string, key: string) => request('/product/purchase', { method: 'POST', body: { agentId, key } }),
   run: (agentId: string, input: string, key: string) => request<Job>('/product/jobs', { method: 'POST', body: { agentId, input, key } }),
   download: (jobId: string) => publicPath(`/enterprise/api/product/jobs/${encodeURIComponent(jobId)}/download`),

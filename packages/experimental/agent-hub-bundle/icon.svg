@@ -1,0 +1,15 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M18 12.5V8.2M18 27.8v-4.3M12.5 18H8.2M27.8 18h-4.3" stroke="#658EFF" stroke-width="2.6" stroke-linecap="round" />
+  <circle cx="18" cy="18" r="5.2" stroke="url(#agent-hub-core)" stroke-width="3" />
+  <circle cx="18" cy="6.4" r="2.2" fill="#41E1AC" />
+  <circle cx="18" cy="29.6" r="2.2" fill="#41E1AC" />
+  <circle cx="6.4" cy="18" r="2.2" fill="#658EFF" />
+  <circle cx="29.6" cy="18" r="2.2" fill="#658EFF" />
+  <defs>
+    <linearGradient id="agent-hub-core" x1="13.2" y1="13.2" x2="22.8" y2="22.8" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#41E1AC" />
+      <stop offset="0.65" stop-color="#658EFF" />
+      <stop offset="1" stop-color="#41E1AC" />
+    </linearGradient>
+  </defs>
+</svg>

@@ -9,8 +9,8 @@ import { zh } from '../src/client/locales.ts'
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); sessionStorage.clear() })
 const member = { user: { id: 'member', teamId: 'team' }, permissions: ['workspace.use'] }
-const wallet = { balance: 100, reserved: 0, canRun: true, canPurchase: true }
-const agent = { id: 'copy', title: '文案助手', description: '', category: '短视频', output: 'text' as const, price: 5, durationDays: 30, entitlement: { active: true, expiresAt: null } }
+const access = { planCode: 'team', planName: '团队版', agentLimit: 10, teams: false, unlocked: 1 }
+const agent = { id: 'copy', title: '文案助手', description: '', category: '短视频', kind: 'agent' as const, members: [], teamUnlocked: true, output: 'text' as const, entitlement: { active: true, expiresAt: null } }
 
 function fixture() {
   const sources: InputTriggerSource[] = []
@@ -25,7 +25,7 @@ function fixture() {
   }
   registerProductMentions(context as never, makeTranslate(zh))
   vi.spyOn(workbenchProducts, 'identity').mockResolvedValue(member)
-  vi.spyOn(workbenchProducts, 'market').mockResolvedValue({ agents: [agent], wallet, jobs: [] })
+  vi.spyOn(workbenchProducts, 'market').mockResolvedValue({ access, agents: [agent], jobs: [] })
   vi.spyOn(workbenchProducts, 'feilian').mockResolvedValue({ available: true, bound: true, state: 'connected', knowledgeBases: [{ id: 'kb-a', name: '产品资料' }] })
   return { source: sources[0]!, knowledge: sources[1]!, execute, actx }
 }
@@ -47,9 +47,10 @@ describe('@ products', () => {
     const inline = [...await source.candidates(session, { ...request, position: 'inline' }), ...await knowledge.candidates(session, { ...request, position: 'inline' })]
     expect(inline.map(row => row.name)).toEqual(['产品资料'])
     vi.mocked(workbenchProducts.market).mockResolvedValue({
-      agents: [{ ...agent, entitlement: { active: false, expiresAt: null } }], wallet, jobs: [],
+      access, agents: [{ ...agent, entitlement: { active: false, expiresAt: null } }], jobs: [],
     })
-    expect((await source.candidates(session, request)).some(row => row.name === '文案助手')).toBe(false)
+    const locked = await source.candidates(session, request)
+    expect(locked.map(row => row.name)).toEqual(['发现更多智能体'])
   })
 
   it('retains the same run identity until both admission and history recording are confirmed', async () => {

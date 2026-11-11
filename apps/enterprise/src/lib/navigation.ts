@@ -20,7 +20,6 @@ export const ADMIN_NAVIGATION: AdminNavGroup[] = [
     label: '账户与服务',
     items: [
       { path: '/enterprise/billing', label: '套餐与额度', shortLabel: '额度', icon: 'plans', permission: 'workspace.use' },
-      { path: '/enterprise/agents', label: '智能体', shortLabel: '智能体', icon: 'spark', permission: 'workspace.use' },
     ],
   },
   {
@@ -73,7 +72,7 @@ export const ADMIN_NAVIGATION: AdminNavGroup[] = [
     items: [
       { path: '/enterprise/admin/audit', label: '审计日志', shortLabel: '审计', icon: 'audit', permission: 'audit.read' },
       { path: '/enterprise/admin/settings', label: '系统设置', shortLabel: '设置', icon: 'settings', permission: 'settings.read' },
-      { path: '/enterprise/admin/agents', label: '智能体与积分', shortLabel: '智能体', icon: 'spark', permission: 'settings.write' },
+      { path: '/enterprise/admin/agents', label: '智能体管理', shortLabel: '智能体', icon: 'spark', permission: 'settings.write' },
     ],
   },
 ]

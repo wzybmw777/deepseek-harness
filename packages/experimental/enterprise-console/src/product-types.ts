@@ -1,11 +1,32 @@
-/** Product records for the points wallet and curated agent marketplace. */
+/** Product records for the curated agent marketplace. */
+
+/** Drawing used for an agent tile; the client owns the actual glyph. */
+export type AgentIcon =
+  | 'spark' | 'strategy' | 'operations' | 'brand' | 'growth' | 'marketing'
+  | 'finance' | 'organization' | 'legal' | 'image' | 'video' | 'document'
+  | 'chat' | 'knowledge'
+
+/** Workbench surface: a curated agent, an imported expert persona, or an expert team. */
+export type AgentKind = 'agent' | 'expert' | 'team'
 
 /** One administrator-owned agent revision; prompts never appear in public views. */
 export interface AgentProduct {
   readonly id: string
   readonly title: string
   readonly description: string
+  readonly alias: string
+  readonly kind: AgentKind
+  readonly members: readonly string[]
+  readonly group: string
   readonly category: string
+  readonly icon: AgentIcon
+  readonly tasks: string
+  readonly materials: string
+  readonly deliverables: string
+  readonly example: string
+  readonly disclaimer: string
+  readonly sortOrder: number
+  readonly recommended: boolean
   readonly output: 'pptx' | 'text' | 'video'
   readonly executor: 'ppt-master' | 'text' | 'video'
   readonly price: number
@@ -15,22 +36,6 @@ export interface AgentProduct {
   readonly systemPrompt: string
   readonly skill: string
   readonly revision: number
-}
-
-/** Per-member spending policy; no implicit team wallet or entitlement sharing. */
-export interface PointsWallet {
-  readonly teamId: string
-  readonly userId: string
-  readonly balance: number
-  readonly reserved: number
-  readonly canPurchase: boolean
-  readonly canRun: boolean
-}
-
-/** Runtime rates in points per million provider-reported tokens. */
-export interface PointsRates {
-  readonly input: number
-  readonly output: number
 }
 
 /** Current purchased or explicitly assigned right to invoke an agent. */
@@ -54,14 +59,31 @@ export interface AgentJob {
   readonly createdAt: string
 }
 
+/** One team member shown with a public team card. */
+export interface AgentTeamMember {
+  readonly id: string
+  readonly title: string
+}
+
 /** Agent configuration with the caller's entitlement and no administrative content. */
 export interface PublicAgent {
   readonly id: string
   readonly title: string
   readonly description: string
+  readonly alias: string
+  readonly group: string
   readonly category: string
+  readonly icon: AgentIcon
+  readonly tasks: string
+  readonly materials: string
+  readonly deliverables: string
+  readonly example: string
+  readonly disclaimer: string
+  readonly sortOrder: number
+  readonly recommended: boolean
   readonly output: AgentProduct['output']
-  readonly price: number
-  readonly durationDays: number | null
+  readonly kind: AgentProduct['kind']
+  readonly members: readonly AgentTeamMember[]
+  readonly teamUnlocked: boolean
   readonly entitlement: AgentEntitlement | null
 }

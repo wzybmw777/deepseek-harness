@@ -294,6 +294,9 @@ importers:
       '@deepseek-ai/dsh-acp-app':
         specifier: workspace:*
         version: link:../../packages/bundle/acp-app
+      '@deepseek-ai/dsh-agent-hub-bundle':
+        specifier: workspace:*
+        version: link:../../packages/experimental/agent-hub-bundle
       '@deepseek-ai/dsh-agent-instructions':
         specifier: workspace:*
         version: link:../../packages/context/agent-instructions
@@ -8458,6 +8461,16 @@ importers:
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:*
         version: link:../../util/values
+
+  packages/experimental/agent-hub-bundle:
+    dependencies:
+      '@deepseek-ai/dsh-client-ui-enterprise-resources':
+        specifier: workspace:*
+        version: link:../client-ui-enterprise-resources
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
 
   packages/experimental/api-speech-to-text:
     dependencies:

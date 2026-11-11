@@ -185,10 +185,9 @@ describe('tenant container launch contract', () => {
 })
 
 describe('tenant runtime helpers', () => {
-  it('loads the in-workbench resource plugin into every tenant patch', () => {
+  it('keeps the tenant patch to product entry points the console owns', () => {
     expect(tenantRuntimePatch(
       '/var/lib/dsh-enterprise-tenants/team-a/documents',
-      '/opt/deepseek-harness/packages/experimental/client-ui-enterprise-resources/lib/index.js',
       '/opt/deepseek-harness/packages/experimental/enterprise-console/lib/tenant-tool-policy.js',
     )).toBe([
       '- id: ui-plugin-manager',
@@ -203,8 +202,6 @@ describe('tenant runtime helpers', () => {
       '      name: "/opt/deepseek-harness/packages/experimental/enterprise-console/lib/tenant-product-chat.js"',
       '    - id: enterprise-tenant-tool-policy',
       '      name: "/opt/deepseek-harness/packages/experimental/enterprise-console/lib/tenant-tool-policy.js"',
-      '    - id: enterprise-resources-ui',
-      '      name: "/opt/deepseek-harness/packages/experimental/client-ui-enterprise-resources/lib/index.js"',
       '',
     ].join('\n'))
   })

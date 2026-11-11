@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-/** Authenticated API owner for the curated market and allocated points wallets. */
+/** Authenticated API owner for the curated market and plan-based agent access. */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
@@ -7,8 +7,9 @@ import type { EnterpriseRequestSession } from './api.ts'
 import { booleanField, HttpError, integerField, readJson, sameOriginMutation, sendJson, textField } from './http.ts'
 import type { EnterpriseStore } from './store.ts'
 import { ProductStore } from './product-store.ts'
-import type { AgentProduct, PublicAgent } from './product-types.ts'
+import type { AgentIcon, AgentProduct, PublicAgent } from './product-types.ts'
 import type { ProductFeilian } from './product-feilian.ts'
+import { planAgentAccess, type PlanAgentAccess } from './plan-access.ts'
 
 /** Invocation and delivery implementation supplied by the product runtime. */
 export interface ProductRunner {
@@ -33,6 +34,10 @@ export interface ProductRunner {
 }
 
 const PREFIX = '/enterprise/api/product'
+const AGENT_ICONS: ReadonlySet<string> = new Set([
+  'spark', 'strategy', 'operations', 'brand', 'growth', 'marketing',
+  'finance', 'organization', 'legal', 'image', 'video', 'document', 'chat', 'knowledge',
+])
 
 function object(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new HttpError(400, '请求内容应为对象', 'invalid_request')
@@ -43,16 +48,44 @@ function identity(value: unknown, label: string): string {
   if (!/^[a-zA-Z0-9_-]+$/u.test(result)) throw new HttpError(400, `${label}只接受字母、数字、连字符和下划线`, 'invalid_identifier')
   return result
 }
+function optionalText(value: unknown, label: string, max: number): string {
+  return value === undefined || value === '' ? '' : textField(value, label, max)
+}
+function iconField(value: unknown): AgentIcon {
+  if (value === undefined || value === '') return 'spark'
+  if (typeof value !== 'string' || !AGENT_ICONS.has(value)) throw new HttpError(400, '请选择支持的图标', 'invalid_icon')
+  return value as AgentIcon
+}
+function kindField(value: unknown): AgentProduct['kind'] {
+  if (value === undefined || value === '') return 'agent'
+  if (value !== 'agent' && value !== 'expert' && value !== 'team') throw new HttpError(400, '请选择支持的智能体类型', 'invalid_kind')
+  return value
+}
+function membersField(value: unknown): string[] {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value) || value.length > 40) throw new HttpError(400, '团队成员应为不超过 40 项的数组', 'invalid_members')
+  return value.map(item => identity(item, '团队成员'))
+}
 function productInput(value: Record<string, unknown>): Omit<AgentProduct, 'revision'> {
   const executor = value.executor
   if (executor !== 'ppt-master' && executor !== 'text' && executor !== 'video') throw new HttpError(400, '请选择支持的执行器', 'invalid_executor')
+  const category = textField(value.category, '分类', 40)
   return {
+    kind: kindField(value.kind), members: membersField(value.members),
     id: value.id === undefined ? randomUUID() : identity(value.id, '智能体标识'),
     title: textField(value.title, '名称', 80), description: textField(value.description, '说明', 1000),
-    category: textField(value.category, '分类', 40), executor,
+    alias: optionalText(value.alias, '别名', 200),
+    group: value.group === undefined || value.group === '' ? category : textField(value.group, '分组', 40),
+    category, icon: iconField(value.icon),
+    tasks: optionalText(value.tasks, '适用任务', 2000), materials: optionalText(value.materials, '所需材料', 1000),
+    deliverables: optionalText(value.deliverables, '交付内容', 1000), example: optionalText(value.example, '使用示例', 2000),
+    disclaimer: optionalText(value.disclaimer, '使用提示', 300),
+    sortOrder: value.sortOrder === undefined ? 100 : integerField(value.sortOrder, '排序', 0, 10_000),
+    recommended: value.recommended === undefined ? false : booleanField(value.recommended, '推荐状态'),
+    executor,
     output: executor === 'ppt-master' ? 'pptx' : executor,
-    price: integerField(value.price, '解锁积分', 0, 1_000_000),
-    durationDays: value.durationDays === null ? null : integerField(value.durationDays, '有效天数', 1, 3650),
+    price: 0,
+    durationDays: null,
     published: booleanField(value.published, '发布状态'), modelId: value.modelId === '' ? '' : textField(value.modelId, '模型', 150),
     systemPrompt: textField(value.systemPrompt, '系统提示词', 30_000), skill: textField(value.skill, '技能说明', 30_000),
   }
@@ -61,7 +94,7 @@ function productInput(value: Record<string, unknown>): Omit<AgentProduct, 'revis
 /** Routes share console identity, but own all new business transactions. */
 export class ProductApi {
   /**
-   * @param products - points and market store.
+   * @param products - agent catalog and entitlement store.
    * @param enterprise - live organization catalog.
    * @param runner - optional installed execution runtime.
    */
@@ -92,15 +125,22 @@ export class ProductApi {
     const admin = url.pathname.startsWith(`${PREFIX}/admin/`)
     if (admin && !role.permissions.includes('settings.write')) throw new HttpError(403, '当前账号没有产品管理权限', 'forbidden')
     const path = url.pathname.slice(PREFIX.length)
+    const access: PlanAgentAccess | undefined = team === undefined || team === null
+      ? undefined
+      : planAgentAccess(catalog.plans.find(candidate => candidate.id === team.planId))
 
     if (path === '/admin/catalog' && method === 'GET') {
-      sendJson(response, 200, { agents: this.products.agents(), rates: this.products.rates(), reviews: this.products.reviews(),
+      sendJson(response, 200, { agents: this.products.agents(),
         models: catalog.models.filter(model => model.status === 'active').map(model => ({ id: model.id, name: model.displayName })),
         members: catalog.users.flatMap((member) => {
           if (member.status !== 'active' || member.teamId === undefined) return []
           return [{ id: member.id, name: member.name, teamId: member.teamId,
-            teamName: catalog.teams.find(item => item.id === member.teamId)?.name,
-            wallet: this.products.wallet(member.teamId, member.id) }]
+            teamName: catalog.teams.find(item => item.id === member.teamId)?.name }]
+        }),
+        teams: catalog.teams.map((memberTeam) => {
+          const capability = planAgentAccess(catalog.plans.find(candidate => candidate.id === memberTeam.planId))
+          return { id: memberTeam.id, name: memberTeam.name, planName: capability.planName, planCode: capability.planCode,
+            agentLimit: capability.agentLimit, teams: capability.teams, unlocked: this.products.unlockedAgents(memberTeam.id) }
         }) })
       return true
     }
@@ -109,42 +149,30 @@ export class ProductApi {
       const model = catalog.models.find(candidate => candidate.id === item.modelId && candidate.status === 'active')
       if ((item.published || item.modelId !== '') && !model) throw new HttpError(400, '请选择启用的模型', 'model_missing')
       if (item.published && !this.runner?.available(item.executor)) throw new HttpError(409, '该执行器尚未开通，请保存为草稿', 'executor_unavailable')
-      if (item.published && this.products.rates() === null) throw new HttpError(409, '请先配置运行积分费率，再发布智能体', 'rates_unconfigured')
       sendJson(response, 200, this.products.saveAgent(item)); return true
-    }
-    if (path === '/admin/rates' && method === 'POST') {
-      this.products.setRates({ input: integerField(body.input, '输入费率', 0, 1_000_000), output: integerField(body.output, '输出费率', 0, 1_000_000) })
-      sendJson(response, 200, { rates: this.products.rates() }); return true
-    }
-    if (path === '/admin/reconcile' && method === 'POST') {
-      this.products.resolve(identity(body.id, '记录标识'), integerField(body.inputTokens, '输入用量', 0, 10_000_000),
-        integerField(body.outputTokens, '输出用量', 0, 10_000_000), user.id, textField(body.note, '核对依据', 1000))
-      sendJson(response, 200, { ok: true }); return true
-    }
-    if (path === '/admin/wallet' && method === 'POST') {
-      const member = catalog.users.find(candidate => candidate.id === body.userId && candidate.teamId === body.teamId)
-      if (!member?.teamId) throw new HttpError(404, '团队成员不存在', 'member_missing')
-      this.products.policy(member.teamId, member.id, booleanField(body.canPurchase, '购买权限'), booleanField(body.canRun, '运行权限'))
-      sendJson(response, 200, this.products.wallet(member.teamId, member.id)); return true
-    }
-    if (path === '/admin/credit' && method === 'POST') {
-      const member = catalog.users.find(candidate => candidate.id === body.userId && candidate.teamId === body.teamId)
-      if (!member?.teamId) throw new HttpError(404, '团队成员不存在', 'member_missing')
-      this.products.credit(member.teamId, member.id, integerField(body.points, '增加积分', 1, 1_000_000), identity(body.key, '请求标识'), user.id, textField(body.note, '调整原因', 300))
-      sendJson(response, 200, this.products.wallet(member.teamId, member.id)); return true
     }
     if (path === '/admin/entitlement' && method === 'POST') {
       const member = catalog.users.find(candidate => candidate.id === body.userId && candidate.teamId === body.teamId)
       if (!member?.teamId) throw new HttpError(404, '团队成员不存在', 'member_missing')
       const agentId = identity(body.agentId, '智能体标识')
+      const memberTeam = catalog.teams.find(candidate => candidate.id === member.teamId)
+      const memberAccess = planAgentAccess(catalog.plans.find(candidate => candidate.id === memberTeam?.planId))
+      const item = this.products.agent(agentId)
+      const revoke = booleanField(body.revoke, '撤销授权')
+      if (!revoke && item.kind === 'team' && !memberAccess.teams) throw new HttpError(403, '专家团仅随企业版套餐开放', 'plan_teams_locked')
+      if (!revoke && !this.products.teamHasAgent(member.teamId, agentId)
+        && memberAccess.agentLimit !== null && this.products.unlockedAgents(member.teamId) >= memberAccess.agentLimit) {
+        throw new HttpError(409, `当前套餐最多解锁 ${String(memberAccess.agentLimit)} 个智能体`, 'plan_agent_limit')
+      }
       const expiry = body.expiresAt === null ? null : textField(body.expiresAt, '有效期', 40)
       if (expiry !== null && (!Number.isFinite(Date.parse(expiry)) || new Date(expiry).toISOString() !== expiry)) throw new HttpError(400, '有效期需要使用 UTC 日期时间', 'invalid_expiry')
-      this.products.grant(member.teamId, member.id, agentId, expiry, booleanField(body.revoke, '撤销授权'))
+      this.products.grant(member.teamId, member.id, agentId, expiry, revoke)
       sendJson(response, 200, this.products.entitlement(member.teamId, member.id, agentId)); return true
     }
     if (!team) throw new HttpError(403, '请联系管理员分配有效的工作空间', 'team_unavailable')
+    if (access === undefined) throw new HttpError(403, '请联系管理员分配有效的工作空间', 'team_unavailable')
     if (path === '/summary' && method === 'GET') {
-      sendJson(response, 200, { wallet: this.products.wallet(team.id, user.id) }); return true
+      sendJson(response, 200, { access: { ...access, unlocked: this.products.unlockedAgents(team.id) } }); return true
     }
     if (path === '/feilian' && method === 'GET') {
       if (!this.feilian) throw new HttpError(503, '飞链服务尚未配置', 'feilian_unavailable')
@@ -167,23 +195,41 @@ export class ProductApi {
       }
     }
     if (path === '/market' && method === 'GET') {
-      const agents: PublicAgent[] = this.products.agents().filter(item => item.published).map(item => ({
-        id: item.id, title: item.title, description: item.description, category: item.category, output: item.output,
-        price: item.price, durationDays: item.durationDays, entitlement: this.products.entitlement(team.id, user.id, item.id),
-      }))
+      const catalog = this.products.agents()
+      const titles = new Map(catalog.map(item => [item.id, item.title]))
+      const agents: PublicAgent[] = catalog.filter(item => item.published).map(item => ({
+        id: item.id, title: item.title, description: item.description, alias: item.alias, group: item.group,
+        category: item.category, icon: item.icon, tasks: item.tasks, materials: item.materials,
+        deliverables: item.deliverables, example: item.example, disclaimer: item.disclaimer,
+        sortOrder: item.sortOrder, recommended: item.recommended, output: item.output,
+        kind: item.kind,
+        members: item.kind === 'team'
+          ? item.members.filter(id => titles.has(id)).map(id => ({ id, title: titles.get(id) ?? id }))
+          : [],
+        teamUnlocked: this.products.teamHasAgent(team.id, item.id),
+        entitlement: this.products.entitlement(team.id, user.id, item.id),
+      })).sort((left, right) => left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'zh-CN'))
       const catalogOnly = url.searchParams.get('view') === 'catalog'
-      sendJson(response, 200, { agents, wallet: this.products.wallet(team.id, user.id),
-        jobs: catalogOnly ? [] : this.products.jobs(team.id, user.id),
-        ledger: catalogOnly ? [] : this.products.ledger(team.id, user.id) })
+      sendJson(response, 200, { agents, access: { ...access, unlocked: this.products.unlockedAgents(team.id) },
+        jobs: catalogOnly ? [] : this.products.jobs(team.id, user.id) })
       return true
     }
     if (path === '/purchase' && method === 'POST') {
-      const entitlement = this.products.purchase(team.id, user.id, identity(body.agentId, '智能体标识'), identity(body.key, '请求标识'))
-      sendJson(response, 200, { entitlement, wallet: this.products.wallet(team.id, user.id) }); return true
+      const agentId = identity(body.agentId, '智能体标识')
+      const item = this.products.agent(agentId)
+      if (item.kind === 'team' && !access.teams) throw new HttpError(403, '专家团仅随企业版套餐开放', 'plan_teams_locked')
+      const active = this.products.entitlement(team.id, user.id, agentId)
+      if (!active?.active && !this.products.teamHasAgent(team.id, agentId)
+        && access.agentLimit !== null && this.products.unlockedAgents(team.id) >= access.agentLimit) {
+        throw new HttpError(409, `当前套餐最多解锁 ${String(access.agentLimit)} 个智能体`, 'plan_agent_limit')
+      }
+      const entitlement = this.products.purchase(team.id, user.id, agentId, identity(body.key, '请求标识'), new Date(), access.agentLimit)
+      sendJson(response, 200, { entitlement }); return true
     }
     if (path === '/jobs' && method === 'POST') {
       const agentId = identity(body.agentId, '智能体标识')
       const item = this.products.agent(agentId)
+      if (item.kind === 'team' && !access.teams) throw new HttpError(403, '专家团仅随企业版套餐开放', 'plan_teams_locked')
       if (!this.runner?.available(item.executor)) throw new HttpError(409, '智能体执行服务尚未就绪，请稍后重试', 'executor_unavailable')
       const admitted = this.products.createJob(team.id, user.id, agentId, textField(body.input, '任务材料', 30_000), identity(body.key, '请求标识'))
       if (admitted.created) this.runner.start(team.id, user.id, admitted.job.id, item)

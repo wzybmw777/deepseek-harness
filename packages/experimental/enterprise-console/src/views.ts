@@ -124,7 +124,7 @@ export function pluginsView(
         label: definition.label,
         description: definition.description,
         ...(stored?.version === undefined ? {} : { version: stored.version }),
-        enabled: stored?.enabled ?? false,
+        enabled: stored?.enabled ?? definition.defaultEnabled ?? false,
         manageable: canWriteBuiltins,
       }
     }),

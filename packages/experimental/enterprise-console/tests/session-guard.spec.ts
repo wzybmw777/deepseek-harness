@@ -182,7 +182,7 @@ describe('enterprise session guard', () => {
     expect(menu?.textContent).toContain('admin@echoai.best')
     expect([...document.querySelectorAll('[data-dsh-enterprise-menu] [role="menuitem"]')]
       .filter(item => !item.hasAttribute('hidden')).map(item => item.textContent)).toEqual([
-      '套餐与积分',
+      '套餐与用量',
       '管理控制台',
       '修改密码',
       '工作台设置',

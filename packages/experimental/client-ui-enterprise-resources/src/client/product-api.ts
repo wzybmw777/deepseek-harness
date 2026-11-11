@@ -4,23 +4,49 @@ import { request } from './api.ts'
 import { enterpriseApiPath } from './public-path.ts'
 
 /** Public agent metadata; administrative prompts stay on the server. */
+export type AgentIcon =
+  | 'spark' | 'strategy' | 'operations' | 'brand' | 'growth' | 'marketing'
+  | 'finance' | 'organization' | 'legal' | 'image' | 'video' | 'document'
+  | 'chat' | 'knowledge'
+
+/** Workbench surface: a curated agent, an imported expert persona, or an expert team. */
+export type AgentKind = 'agent' | 'expert' | 'team'
+
+/** One member listed on an expert team card. */
+export interface MarketTeamMember {
+  readonly id: string
+  readonly title: string
+}
+
 export interface MarketAgent {
   readonly id: string
   readonly title: string
   readonly description: string
+  readonly kind: AgentKind
+  readonly members: readonly MarketTeamMember[]
+  readonly alias?: string
+  readonly group?: string
   readonly category: string
+  readonly icon?: AgentIcon
+  readonly tasks?: string
+  readonly materials?: string
+  readonly deliverables?: string
+  readonly example?: string
+  readonly disclaimer?: string
+  readonly sortOrder?: number
+  readonly recommended?: boolean
   readonly output: 'pptx' | 'text' | 'video'
-  readonly price: number
-  readonly durationDays: number | null
+  readonly teamUnlocked: boolean
   readonly entitlement: { readonly active: boolean; readonly expiresAt: string | null } | null
 }
 
-/** Allocated member points, including holds for requests still being settled. */
-export interface PointsWallet {
-  readonly balance: number
-  readonly reserved: number
-  readonly canPurchase: boolean
-  readonly canRun: boolean
+/** Paid-plan capability that decides which catalog entries a team may unlock. */
+export interface PlanAccess {
+  readonly planCode: string
+  readonly planName: string
+  readonly agentLimit: number | null
+  readonly teams: boolean
+  readonly unlocked: number
 }
 
 /** A member's durable task and downloadable result. */
@@ -33,14 +59,13 @@ export interface MarketJob {
   readonly result: string | null
   readonly error: string | null
   readonly artifact: string | null
-  readonly charged: number
   readonly createdAt: string
 }
 
-/** Read model used inside the workbench, excluding its administrative ledger. */
+/** Read model used inside the workbench, excluding administrative configuration. */
 export interface MarketSnapshot {
   readonly agents: MarketAgent[]
-  readonly wallet: PointsWallet
+  readonly access: PlanAccess
   readonly jobs: MarketJob[]
 }
 
@@ -71,7 +96,7 @@ export interface FeilianStatus {
 /** Account-scoped requests used by native workbench components. */
 export const workbenchProducts = {
   market: (): Promise<MarketSnapshot> => request('/product/market', { query: { view: 'catalog' } }),
-  wallet: (): Promise<{ wallet: PointsWallet }> => request('/product/summary'),
+  summary: (): Promise<{ access: PlanAccess }> => request('/product/summary'),
   billing: (): Promise<PlanSummary> => request('/billing'),
   identity: (): Promise<ProductIdentity> => request('/session'),
   purchase: (agentId: string, key: string): Promise<unknown> => request('/product/purchase', { method: 'POST', body: { agentId, key } }),

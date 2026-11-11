@@ -59,7 +59,6 @@ describe('independent Feilian binding', () => {
     expect(JSON.stringify(status)).not.toContain('token')
     expect(await service.status('team', 'bob')).toMatchObject({ bound: false, state: 'unbound', knowledgeBases: [] })
     expect(await service.status('other', 'alice')).toMatchObject({ bound: false, state: 'unbound' })
-    expect(store.wallet('team', 'alice').balance).toBe(0)
   })
 
   it('contains invalid login and serializes simultaneous credential exchanges', async () => {
@@ -74,13 +73,12 @@ describe('independent Feilian binding', () => {
     expect(counts().logins).toBe(2)
   })
 
-  it('uses the selected KB, leaves Zhiliu points independent, and revokes before unbinding', async () => {
+  it('uses the selected KB and revokes before unbinding', async () => {
     const { service, store, counts } = await fixture()
     await service.bind('team', 'alice', 'alice@example.com', 'fixture-password')
     await expect(service.query('team', 'bob', 'kb-a', 'Question')).rejects.toMatchObject({ code: 'feilian_unbound' })
     expect(await service.query('team', 'alice', 'kb-a', 'Question')).toEqual({ answer: 'Knowledge answer: Question' })
     await expect(service.query('team', 'alice', 'kb-other', 'Question')).rejects.toMatchObject({ code: 'feilian_auth_required' })
-    expect(store.ledger('team', 'alice')).toHaveLength(0)
     await service.unbind('team', 'alice')
     expect(counts()).toMatchObject({ revoked: 1, queries: 2 })
     expect(store.binding('team', 'alice')).toBeNull()

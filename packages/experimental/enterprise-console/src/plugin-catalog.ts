@@ -7,9 +7,15 @@ export interface BuiltinPluginDefinition {
   readonly packageName: string
   readonly label: string
   readonly description: string
+  /** Bundles a tenant enables before its owner decides; an explicit record still wins. */
+  readonly defaultEnabled?: boolean
 }
 
+/** Bundles that ship switched on, so a fresh tenant already carries the product surfaces. */
+const DEFAULT_ENABLED: ReadonlySet<string> = new Set(['@deepseek-ai/dsh-agent-hub-bundle'])
+
 const BUILTIN_LABELS: Readonly<Record<string, { label: string; description: string }>> = {
+  '@deepseek-ai/dsh-agent-hub-bundle': { label: '智能体中心', description: '企业经营参谋目录与团队资源工作台。' },
   '@deepseek-ai/dsh-personalized-recommendations': { label: '个性推荐', description: '基于当前工作内容提供建议。' },
   '@deepseek-ai/dsh-experimental-session-search': { label: '会话搜索', description: '搜索历史会话。' },
   '@deepseek-ai/dsh-experimental-ralph-bundle': { label: 'Ralph', description: '自主迭代任务执行。' },
@@ -34,6 +40,7 @@ export const BUILTIN_PLUGINS: readonly BuiltinPluginDefinition[] = OPTIONAL_BUND
     packageName,
     label: display?.label ?? packageName.split('/').at(-1) ?? packageName,
     description: display?.description ?? '',
+    ...(DEFAULT_ENABLED.has(packageName) ? { defaultEnabled: true } : {}),
   }
 })
 

@@ -1,0 +1,6 @@
+Expert personas in catalog/experts.json are derived from:
+- https://github.com/msitarzewski/agency-agents (Copyright (c) 2025 AgentLand Contributors, MIT)
+- https://github.com/jnMetaCode/agency-agents-zh (Copyright (c) 2026 jnMetaCode, MIT)
+
+The persona snapshots were distributed by @michengai/dsh-agency-agents (Apache-2.0).
+They remain available under the MIT License; see the upstream repositories for the full text.

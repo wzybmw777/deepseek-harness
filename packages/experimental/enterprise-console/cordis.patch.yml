@@ -9,6 +9,7 @@
         productFeilianEnterpriseUrl: !!js process.env.DSH_PRODUCT_FEILIAN_ENTERPRISE_URL
         productFeilianTimeoutMs: !!js Number(process.env.DSH_PRODUCT_FEILIAN_TIMEOUT_MS ?? 120000)
         productPptSkillRoot: !!js process.env.DSH_PRODUCT_PPT_SKILL_ROOT
+        productAgentCatalog: !!js process.env.DSH_PRODUCT_AGENT_CATALOG
         productPython: !!js process.env.DSH_PRODUCT_PYTHON ?? 'python3'
         productModelTimeoutMs: !!js Number(process.env.DSH_PRODUCT_MODEL_TIMEOUT_MS ?? 240000)
         productExportTimeoutMs: !!js Number(process.env.DSH_PRODUCT_EXPORT_TIMEOUT_MS ?? 180000)

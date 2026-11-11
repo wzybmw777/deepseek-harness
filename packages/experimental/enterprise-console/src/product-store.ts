@@ -1,13 +1,17 @@
-/** Transactional points, entitlement, and job owner, independent of legacy token quotas. */
+/** Transactional agent entitlement and job owner, independent of plan quotas. */
 
 import { randomUUID } from 'node:crypto'
 import { chmod, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync, type SQLOutputValue } from 'node:sqlite'
 import { HttpError } from './http.ts'
-import type { AgentEntitlement, AgentJob, AgentProduct, PointsRates, PointsWallet } from './product-types.ts'
+import type { AgentEntitlement, AgentIcon, AgentJob, AgentProduct } from './product-types.ts'
 
 const UNIT = 1_000_000
+const AGENT_ICONS: ReadonlySet<string> = new Set([
+  'spark', 'strategy', 'operations', 'brand', 'growth', 'marketing',
+  'finance', 'organization', 'legal', 'image', 'video', 'document', 'chat', 'knowledge',
+])
 type Row = Record<string, SQLOutputValue>
 
 function str(row: Row, key: string): string {
@@ -21,6 +25,21 @@ function num(row: Row, key: string): number {
   return value
 }
 function nullable(row: Row, key: string): string | null { return row[key] === null ? null : str(row, key) }
+function agentKind(row: Row): AgentProduct['kind'] {
+  const value = str(row, 'kind')
+  if (value !== 'agent' && value !== 'expert' && value !== 'team') throw new Error('Invalid product kind')
+  return value
+}
+function agentMembers(row: Row): string[] {
+  const parsed: unknown = JSON.parse(str(row, 'members'))
+  if (!Array.isArray(parsed) || parsed.some(item => typeof item !== 'string')) throw new Error('Invalid product members')
+  return parsed as string[]
+}
+function agentIcon(row: Row): AgentIcon {
+  const value = str(row, 'icon')
+  if (!AGENT_ICONS.has(value)) throw new Error('Invalid product icon')
+  return value as AgentIcon
+}
 function micros(points: number): number {
   const value = Math.round(points * UNIT)
   if (!Number.isSafeInteger(value) || value < 0 || points > 1_000_000_000) throw new HttpError(400, '积分数值超出范围', 'invalid_points')
@@ -33,6 +52,10 @@ function product(row: Row): AgentProduct {
   if (executor !== 'ppt-master' && executor !== 'text' && executor !== 'video') throw new Error('Invalid product executor')
   return {
     id: str(row, 'id'), title: str(row, 'title'), description: str(row, 'description'), category: str(row, 'category'),
+    alias: str(row, 'alias'), kind: agentKind(row), members: agentMembers(row), group: str(row, 'group_name'), icon: agentIcon(row),
+    tasks: str(row, 'tasks'), materials: str(row, 'materials'), deliverables: str(row, 'deliverables'),
+    example: str(row, 'example'), disclaimer: str(row, 'disclaimer'),
+    sortOrder: num(row, 'sort_order'), recommended: num(row, 'recommended') === 1,
     output, executor, price: num(row, 'price') / UNIT, durationDays: row.duration_days === null ? null : num(row, 'duration_days'),
     published: num(row, 'published') === 1, modelId: str(row, 'model_id'), systemPrompt: str(row, 'system_prompt'),
     skill: str(row, 'skill'), revision: num(row, 'revision'),
@@ -48,36 +71,44 @@ function job(row: Row): AgentJob {
   }
 }
 
+/** One shipped agent definition, inserted as a draft the first time its catalog version is seen. */
+export type AgentCatalogEntry = Omit<AgentProduct, 'revision'>
+
+/** Shipped first-party agent catalog and the content hash that identifies it. */
+export interface AgentCatalogSeed {
+  readonly version: string
+  readonly agents: readonly AgentCatalogEntry[]
+}
+
 /** Synchronous SQLite transactions serialize purchase, reservation, and settlement. */
 export class ProductStore {
   private constructor(private readonly db: DatabaseSync) {}
 
-  /** Open or migrate product-owned storage. @param directory - private console data root. @returns the open store. */
-  static async open(directory: string): Promise<ProductStore> {
+  /**
+   * Open or migrate product-owned storage.
+   * @param directory - private console data root.
+   * @param seed - shipped first-party catalog; missing entries are inserted when its version changes.
+   * @returns the open store.
+   */
+  static async open(directory: string, seed?: AgentCatalogSeed): Promise<ProductStore> {
     await mkdir(directory, { recursive: true, mode: 0o700 })
     const filename = join(directory, 'product.sqlite')
     const db = new DatabaseSync(filename)
     await chmod(filename, 0o600)
     db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;')
     const version = db.prepare('PRAGMA user_version').get()?.user_version
-    if (version !== 0 && version !== 1) { db.close(); throw new Error('Unsupported product database version') }
+    if (version !== 0 && version !== 1 && version !== 2 && version !== 3) { db.close(); throw new Error('Unsupported product database version') }
     db.exec(`
       CREATE TABLE IF NOT EXISTS agents (
-        id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL,
+        id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, alias TEXT NOT NULL DEFAULT '',
+        group_name TEXT NOT NULL DEFAULT '', category TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'spark',
+        tasks TEXT NOT NULL DEFAULT '', materials TEXT NOT NULL DEFAULT '', deliverables TEXT NOT NULL DEFAULT '',
+        example TEXT NOT NULL DEFAULT '', disclaimer TEXT NOT NULL DEFAULT '',
+        sort_order INTEGER NOT NULL DEFAULT 100, recommended INTEGER NOT NULL DEFAULT 0,
         output TEXT NOT NULL, executor TEXT NOT NULL, price INTEGER NOT NULL CHECK(price >= 0),
         duration_days INTEGER, published INTEGER NOT NULL, model_id TEXT NOT NULL,
-        system_prompt TEXT NOT NULL, skill TEXT NOT NULL, revision INTEGER NOT NULL
-      ) STRICT;
-      CREATE TABLE IF NOT EXISTS wallets (
-        team_id TEXT NOT NULL, user_id TEXT NOT NULL, balance INTEGER NOT NULL DEFAULT 0 CHECK(balance >= 0),
-        reserved INTEGER NOT NULL DEFAULT 0 CHECK(reserved >= 0 AND reserved <= balance),
-        can_purchase INTEGER NOT NULL DEFAULT 0, can_run INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY(team_id, user_id)
-      ) STRICT;
-      CREATE TABLE IF NOT EXISTS ledger (
-        id TEXT PRIMARY KEY, team_id TEXT NOT NULL, user_id TEXT NOT NULL, delta INTEGER NOT NULL,
-        kind TEXT NOT NULL, reference TEXT NOT NULL UNIQUE, actor_id TEXT NOT NULL, note TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        system_prompt TEXT NOT NULL, skill TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'agent', members TEXT NOT NULL DEFAULT '[]', revision INTEGER NOT NULL
       ) STRICT;
       CREATE TABLE IF NOT EXISTS entitlements (
         team_id TEXT NOT NULL, user_id TEXT NOT NULL, agent_id TEXT NOT NULL REFERENCES agents(id),
@@ -88,8 +119,6 @@ export class ProductStore {
         price INTEGER NOT NULL, expires_at TEXT, created_at TEXT NOT NULL,
         PRIMARY KEY(team_id,user_id,key)
       ) STRICT;
-      CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK(id=1), input_rate INTEGER, output_rate INTEGER) STRICT;
-      INSERT OR IGNORE INTO settings VALUES(1,NULL,NULL);
       CREATE TABLE IF NOT EXISTS jobs (
         id TEXT PRIMARY KEY, team_id TEXT NOT NULL, user_id TEXT NOT NULL, request_key TEXT NOT NULL,
         agent_id TEXT NOT NULL, title TEXT NOT NULL, revision INTEGER NOT NULL, config TEXT NOT NULL,
@@ -106,16 +135,61 @@ export class ProductStore {
         team_id TEXT NOT NULL, user_id TEXT NOT NULL, account TEXT NOT NULL, encrypted_key TEXT NOT NULL,
         updated_at TEXT NOT NULL, PRIMARY KEY(team_id,user_id)
       ) STRICT;
-      PRAGMA user_version=1;
+      CREATE TABLE IF NOT EXISTS catalog_seed (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
     `)
+    if (version === 1) {
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        db.exec(`
+        ALTER TABLE agents ADD COLUMN alias TEXT NOT NULL DEFAULT '';
+        ALTER TABLE agents ADD COLUMN group_name TEXT NOT NULL DEFAULT '';
+        ALTER TABLE agents ADD COLUMN icon TEXT NOT NULL DEFAULT 'spark';
+        ALTER TABLE agents ADD COLUMN tasks TEXT NOT NULL DEFAULT '';
+        ALTER TABLE agents ADD COLUMN materials TEXT NOT NULL DEFAULT '';
+        ALTER TABLE agents ADD COLUMN deliverables TEXT NOT NULL DEFAULT '';
+        ALTER TABLE agents ADD COLUMN example TEXT NOT NULL DEFAULT '';
+        ALTER TABLE agents ADD COLUMN disclaimer TEXT NOT NULL DEFAULT '';
+        ALTER TABLE agents ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 100;
+        ALTER TABLE agents ADD COLUMN recommended INTEGER NOT NULL DEFAULT 0;
+        `)
+        db.exec('COMMIT')
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
+    }
+    if (version === 1 || version === 2) {
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        db.exec(`
+        ALTER TABLE agents ADD COLUMN kind TEXT NOT NULL DEFAULT 'agent';
+        ALTER TABLE agents ADD COLUMN members TEXT NOT NULL DEFAULT '[]';
+        `)
+        db.exec('COMMIT')
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
+    }
+    db.exec('PRAGMA user_version=3')
     const store = new ProductStore(db)
     if (store.agents().length === 0) store.saveAgent({ id: 'ppt-studio', title: '演示文稿助手',
-      description: '把你的文案、汇报材料或课程内容，整理成一份可以继续编辑的演示文稿。', category: '办公创作',
+      description: '把你的文案、汇报材料或课程内容，整理成一份可以继续编辑的演示文稿。',
+      alias: 'PPT,演示文稿,幻灯片', group: '办公创作', category: '办公创作', icon: 'document',
+      tasks: '汇报材料成稿\n课程内容整理\n方案初稿可视化', materials: '完整的文字材料、汇报对象与用途',
+      deliverables: '3–6 页原生可编辑 PPTX', example: '把这些周报整理成 5 页管理层汇报，突出增长与风险。',
+      disclaimer: '', kind: 'agent', members: [], sortOrder: 10, recommended: true,
       output: 'pptx', executor: 'ppt-master', price: 0, durationDays: 30, published: false, modelId: '',
       systemPrompt: '你是织流演示文稿助手，清晰表达用户材料，使用中文，保留事实，不编造数据。',
       skill: '使用 PPT Master 的 Quick Generate 流程交付原生可编辑 PPTX。仅基于用户提供的完整材料，快速制作 3 至 6 页演示文稿。' })
-    // A dispatched request may have incurred provider cost: retain its hold for review.
-    db.exec("UPDATE jobs SET state='interrupted', error='服务重启中断了任务，请联系管理员核对用量后重新提交。' WHERE state IN ('queued','running')")
+    db.prepare(`UPDATE agents SET alias='PPT,演示文稿,幻灯片', group_name=category, icon='document',
+      tasks=CASE WHEN tasks='' THEN '汇报材料成稿\n课程内容整理\n方案初稿可视化' ELSE tasks END,
+      materials=CASE WHEN materials='' THEN '完整的文字材料、汇报对象与用途' ELSE materials END,
+      deliverables=CASE WHEN deliverables='' THEN '3–6 页原生可编辑 PPTX' ELSE deliverables END,
+      example=CASE WHEN example='' THEN '把这些周报整理成 5 页管理层汇报，突出增长与风险。' ELSE example END,
+      recommended=1, sort_order=10 WHERE id='ppt-studio' AND alias=''`).run()
+    if (seed !== undefined) store.seedCatalog(seed)
+    db.exec("UPDATE jobs SET state='interrupted', error='服务重启中断了任务，请重新提交。' WHERE state IN ('queued','running')")
     return store
   }
 
@@ -135,6 +209,28 @@ export class ProductStore {
   /** Read all administrative revisions. @returns products including private configuration. */
   agents(): AgentProduct[] { return this.db.prepare('SELECT * FROM agents ORDER BY title').all().map(product) }
 
+  /**
+   * Insert shipped catalog entries the store does not hold yet, once per shipped version.
+   * Owner edits and deletions stay untouched; a new version only adds its missing ids.
+   * @param seed - shipped catalog and its content version.
+   * @returns ids inserted by this call.
+   */
+  seedCatalog(seed: AgentCatalogSeed): string[] {
+    const recorded = (this.db.prepare("SELECT value FROM catalog_seed WHERE key='agents'").get() as { value?: string } | undefined)?.value
+    if (recorded === seed.version) return []
+    const created: string[] = []
+    this.transaction(() => {
+      for (const agent of seed.agents) {
+        if (this.db.prepare('SELECT 1 FROM agents WHERE id=?').get(agent.id)) continue
+        this.saveAgent(agent)
+        created.push(agent.id)
+      }
+      this.db.prepare(`INSERT INTO catalog_seed(key,value) VALUES('agents',?)
+        ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(seed.version)
+    })
+    return created
+  }
+
   /** Read one product. @param id - stable agent identifier. @returns the product or a typed missing error. */
   agent(id: string): AgentProduct {
     const row = this.db.prepare('SELECT * FROM agents WHERE id=?').get(id)
@@ -146,80 +242,23 @@ export class ProductStore {
   saveAgent(input: Omit<AgentProduct, 'revision'>): AgentProduct {
     const old = this.db.prepare('SELECT revision FROM agents WHERE id=?').get(input.id)
     const revision = old ? num(old, 'revision') + 1 : 1
-    this.db.prepare(`INSERT INTO agents VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
-      title=excluded.title, description=excluded.description, category=excluded.category, output=excluded.output,
+    // Name every column: a database upgraded from v1 keeps the original order with the v2 columns appended.
+    this.db.prepare(`INSERT INTO agents(id, title, description, alias, group_name, category, icon, tasks, materials,
+      deliverables, example, disclaimer, sort_order, recommended, output, executor, price, duration_days, published,
+      model_id, system_prompt, skill, kind, members, revision) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+      title=excluded.title, description=excluded.description, alias=excluded.alias, group_name=excluded.group_name,
+      category=excluded.category, icon=excluded.icon, tasks=excluded.tasks, materials=excluded.materials,
+      deliverables=excluded.deliverables, example=excluded.example, disclaimer=excluded.disclaimer,
+      sort_order=excluded.sort_order, recommended=excluded.recommended, output=excluded.output,
       executor=excluded.executor, price=excluded.price, duration_days=excluded.duration_days, published=excluded.published,
-      model_id=excluded.model_id, system_prompt=excluded.system_prompt, skill=excluded.skill, revision=excluded.revision`)
-      .run(input.id, input.title, input.description, input.category, input.output, input.executor, micros(input.price),
-        input.durationDays, Number(input.published), input.modelId, input.systemPrompt, input.skill, revision)
+      model_id=excluded.model_id, system_prompt=excluded.system_prompt, skill=excluded.skill,
+      kind=excluded.kind, members=excluded.members, revision=excluded.revision`)
+      .run(input.id, input.title, input.description, input.alias, input.group, input.category, input.icon,
+        input.tasks, input.materials, input.deliverables, input.example, input.disclaimer,
+        input.sortOrder, Number(input.recommended), input.output, input.executor, micros(input.price),
+        input.durationDays, Number(input.published), input.modelId, input.systemPrompt, input.skill,
+        input.kind, JSON.stringify(input.members), revision)
     return this.agent(input.id)
-  }
-
-  /** Read the configured runtime rates. @returns null until an administrator configures billing. */
-  rates(): PointsRates | null {
-    const row = this.db.prepare('SELECT * FROM settings WHERE id=1').get()
-    if (!row || row.input_rate === null || row.output_rate === null) return null
-    return { input: num(row, 'input_rate'), output: num(row, 'output_rate') }
-  }
-
-  /** Set whole points per million tokens. @param rates - validated nonnegative integer rates. */
-  setRates(rates: PointsRates): void { this.db.prepare('UPDATE settings SET input_rate=?,output_rate=? WHERE id=1').run(rates.input, rates.output) }
-
-  /**
-   * Read a member wallet; missing assignments have no spending permissions.
-   * @param teamId - team.
-   * @param userId - member.
-   * @returns current wallet.
-   */
-  wallet(teamId: string, userId: string): PointsWallet {
-    const row = this.db.prepare('SELECT * FROM wallets WHERE team_id=? AND user_id=?').get(teamId, userId)
-    return { teamId, userId, balance: row ? num(row, 'balance') / UNIT : 0, reserved: row ? num(row, 'reserved') / UNIT : 0,
-      canPurchase: row ? num(row, 'can_purchase') === 1 : false, canRun: row ? num(row, 'can_run') === 1 : false }
-  }
-
-  /**
-   * Explicitly assign spending permissions.
-   * @param teamId - team.
-   * @param userId - member.
-   * @param purchase - purchase permission.
-   * @param run - execution permission.
-   */
-  policy(teamId: string, userId: string, purchase: boolean, run: boolean): void {
-    this.db.prepare(`INSERT INTO wallets(team_id,user_id,can_purchase,can_run) VALUES(?,?,?,?)
-      ON CONFLICT(team_id,user_id) DO UPDATE SET can_purchase=excluded.can_purchase,can_run=excluded.can_run`)
-      .run(teamId, userId, Number(purchase), Number(run))
-  }
-
-  /**
-   * Append an idempotent administrator credit.
-   * @param teamId - team.
-   * @param userId - member.
-   * @param points - positive points.
-   * @param key - request idempotency key.
-   * @param actorId - administrator.
-   * @param note - reason.
-   */
-  credit(teamId: string, userId: string, points: number, key: string, actorId: string, note: string): void {
-    this.transaction(() => {
-      const reference = `credit:${actorId}:${key}`
-      const previous = this.db.prepare('SELECT * FROM ledger WHERE reference=?').get(reference)
-      const delta = micros(points)
-      if (previous) {
-        if (str(previous, 'team_id') !== teamId || str(previous, 'user_id') !== userId || num(previous, 'delta') !== delta) throw new HttpError(409, '请求标识已被用于另一笔交易', 'idempotency_conflict')
-        return
-      }
-      this.db.prepare('INSERT OR IGNORE INTO wallets(team_id,user_id) VALUES(?,?)').run(teamId, userId)
-      const balance = micros(this.wallet(teamId, userId).balance)
-      if (!Number.isSafeInteger(balance + delta) || balance + delta > 1_000_000_000 * UNIT) throw new HttpError(400, '钱包余额超出范围，请减少本次增加积分', 'invalid_points')
-      this.db.prepare('UPDATE wallets SET balance=balance+? WHERE team_id=? AND user_id=?').run(delta, teamId, userId)
-      this.appendLedger(teamId, userId, delta, 'credit', reference, actorId, note)
-    })
-  }
-
-  private appendLedger(
-    teamId: string, userId: string, delta: number, kind: string, reference: string, actorId: string, note: string,
-  ): void {
-    this.db.prepare('INSERT INTO ledger VALUES(?,?,?,?,?,?,?,?,?)').run(randomUUID(), teamId, userId, delta, kind, reference, actorId, note, new Date().toISOString())
   }
 
   /**
@@ -237,16 +276,34 @@ export class ProductStore {
     return { agentId, expiresAt, active: num(row, 'revoked') === 0 && (expiresAt === null || Date.parse(expiresAt) > now.getTime()) }
   }
 
+  /** Distinct agents the team currently holds, including administrator grants. */
+  unlockedAgents(teamId: string, now = new Date()): number {
+    const row = this.db.prepare(`SELECT COUNT(DISTINCT agent_id) AS count FROM entitlements
+      WHERE team_id=? AND revoked=0 AND (expires_at IS NULL OR expires_at > ?)`).get(teamId, now.toISOString())
+    return row === undefined ? 0 : num(row, 'count')
+  }
+
+  /** Whether any team member currently holds this agent, including administrator grants. */
+  teamHasAgent(teamId: string, agentId: string, now = new Date()): boolean {
+    return this.db.prepare(`SELECT 1 FROM entitlements WHERE team_id=? AND agent_id=? AND revoked=0
+      AND (expires_at IS NULL OR expires_at > ?) LIMIT 1`).get(teamId, agentId, now.toISOString()) !== undefined
+  }
+
   /**
-   * Purchase permission, independently of runtime usage. Active rights are not charged again.
+   * Unlock a published agent for one member; the caller enforces plan limits.
+   * Active rights are not granted twice.
    * @param teamId - team.
    * @param userId - buyer.
    * @param agentId - product.
    * @param key - idempotency key.
    * @param now - purchase clock.
+   * @param agentLimit - distinct agents the team's plan allows, or null for unlimited.
    * @returns granted right.
    */
-  purchase(teamId: string, userId: string, agentId: string, key: string, now = new Date()): AgentEntitlement {
+  purchase(
+    teamId: string, userId: string, agentId: string, key: string,
+    now = new Date(), agentLimit: number | null = null,
+  ): AgentEntitlement {
     return this.transaction(() => {
       const previous = this.db.prepare('SELECT * FROM purchases WHERE team_id=? AND user_id=? AND key=?').get(teamId, userId, key)
       if (previous) {
@@ -256,17 +313,16 @@ export class ProductStore {
       }
       const item = this.agent(agentId)
       if (!item.published) throw new HttpError(409, '该智能体已下架', 'agent_unpublished')
-      const wallet = this.wallet(teamId, userId)
-      if (!wallet.canPurchase) throw new HttpError(403, '请联系管理员开通智能体购买权限', 'purchase_forbidden')
       const existing = this.entitlement(teamId, userId, agentId, now)
       if (existing?.active) throw new HttpError(409, '使用权仍在有效期内，请直接使用', 'already_unlocked')
-      if (micros(wallet.balance - wallet.reserved) < micros(item.price)) throw new HttpError(402, '可用积分不足，请联系管理员补充积分', 'points_insufficient')
-      const expiresAt = item.durationDays === null ? null : new Date(now.getTime() + item.durationDays * 86_400_000).toISOString()
-      this.db.prepare('UPDATE wallets SET balance=balance-? WHERE team_id=? AND user_id=?').run(micros(item.price), teamId, userId)
+      if (agentLimit !== null && !this.teamHasAgent(teamId, agentId, now) && this.unlockedAgents(teamId, now) >= agentLimit) {
+        throw new HttpError(409, `当前套餐最多解锁 ${String(agentLimit)} 个智能体`, 'plan_agent_limit')
+      }
+      // Plan access stays active while the team keeps its subscription.
+      const expiresAt = null
       this.db.prepare(`INSERT INTO entitlements VALUES(?,?,?,?,0) ON CONFLICT(team_id,user_id,agent_id)
         DO UPDATE SET expires_at=excluded.expires_at,revoked=0`).run(teamId, userId, agentId, expiresAt)
-      this.db.prepare('INSERT INTO purchases VALUES(?,?,?,?,?,?,?)').run(teamId, userId, key, agentId, micros(item.price), expiresAt, now.toISOString())
-      this.appendLedger(teamId, userId, -micros(item.price), 'unlock', `unlock:${teamId}:${userId}:${key}`, userId, item.title)
+      this.db.prepare('INSERT INTO purchases VALUES(?,?,?,?,?,?,?)').run(teamId, userId, key, agentId, 0, expiresAt, now.toISOString())
       return { agentId, expiresAt, active: true }
     })
   }
@@ -321,9 +377,7 @@ export class ProductStore {
   assertRun(teamId: string, userId: string, agentId: string): AgentProduct {
     const item = this.agent(agentId)
     if (!item.published) throw new HttpError(409, '该智能体已下架', 'agent_unpublished')
-    if (!this.wallet(teamId, userId).canRun) throw new HttpError(403, '请联系管理员开通运行权限', 'run_forbidden')
     if (!this.entitlement(teamId, userId, agentId)?.active) throw new HttpError(403, '请先解锁该智能体', 'agent_locked')
-    if (this.rates() === null) throw new HttpError(409, '管理员尚未配置运行积分费率', 'rates_unconfigured')
     return item
   }
 
@@ -350,83 +404,39 @@ export class ProductStore {
   }
 
   /**
-   * Reserve the request's maximum charge and persist its complete model input before dispatch.
+   * Persist the complete model input before dispatch. Plan-based access no longer holds points.
    * @param jobId - admitted task.
    * @param teamId - team.
    * @param userId - member.
-   * @param maximumTokens - upper bound from model context.
+   * @param _maximumTokens - retained for the runner's context bound.
    * @param request - reconstructable request without credentials.
    * @returns settlement identity.
    */
-  reserve(jobId: string, teamId: string, userId: string, maximumTokens: number, request: string): string {
+  reserve(jobId: string, teamId: string, userId: string, _maximumTokens: number, request: string): string {
     return this.transaction(() => {
       const current = this.job(teamId, userId, jobId)
       this.assertRun(teamId, userId, current.agentId)
-      const rates = this.rates()
-      if (!rates) throw new HttpError(409, '请先配置积分费率', 'rates_unconfigured')
-      const reserved = maximumTokens * Math.max(rates.input, rates.output)
-      if (!Number.isSafeInteger(reserved)) throw new HttpError(400, '预留积分超出范围', 'invalid_points')
-      const wallet = this.wallet(teamId, userId)
-      if (micros(wallet.balance - wallet.reserved) < reserved) throw new HttpError(402, '可用积分不足以预留本次任务费用，请补充积分后重试', 'points_insufficient')
       const id = randomUUID()
-      this.db.prepare('UPDATE wallets SET reserved=reserved+? WHERE team_id=? AND user_id=?').run(reserved, teamId, userId)
       this.db.prepare(`INSERT INTO attempts(id,job_id,team_id,user_id,reserved,input_rate,output_rate,state,request)
-        VALUES(?,?,?,?,?,?,?,'started',?)`).run(id, jobId, teamId, userId, reserved, rates.input, rates.output, request)
+        VALUES(?,?,?,?,0,0,0,'started',?)`).run(id, jobId, teamId, userId, request)
       return id
     })
   }
 
   /**
-   * Settle provider usage exactly once. Missing usage retains the hold for administrator review.
+   * Record provider usage exactly once. Plan-based access never charges points.
    * @param id - attempt.
    * @param response - durable response.
-   * @param usage - authoritative provider counts, or null for unknown usage.
-   * @param reviewed - permit reconciliation of a retained hold.
+   * @param usage - provider counts, or null when the provider omitted them.
    */
-  settle(id: string, response: string, usage: { inputTokens: number; outputTokens: number } | null, reviewed = false): void {
+  settle(id: string, response: string, usage: { inputTokens: number; outputTokens: number } | null): void {
     this.transaction(() => {
       const row = this.db.prepare('SELECT * FROM attempts WHERE id=?').get(id)
       if (!row) throw new Error('Missing product billing attempt')
-      if (str(row, 'state') !== 'started' && !(reviewed && str(row, 'state') === 'review')) return
-      if (usage === null) { this.db.prepare("UPDATE attempts SET state='review',response=? WHERE id=?").run(response, id); return }
-      const charge = usage.inputTokens * num(row, 'input_rate') + usage.outputTokens * num(row, 'output_rate')
-      if (!Number.isSafeInteger(charge) || charge < 0 || charge > num(row, 'reserved')) throw new Error('Provider usage exceeded reserved context budget')
-      const teamId = str(row, 'team_id'), userId = str(row, 'user_id')
-      this.db.prepare('UPDATE wallets SET reserved=reserved-?,balance=balance-? WHERE team_id=? AND user_id=?').run(num(row, 'reserved'), charge, teamId, userId)
-      this.db.prepare("UPDATE attempts SET state='settled',response=?,input_tokens=?,output_tokens=? WHERE id=?").run(response, usage.inputTokens, usage.outputTokens, id)
-      this.db.prepare('UPDATE jobs SET charged=charged+? WHERE id=?').run(charge, str(row, 'job_id'))
-      this.appendLedger(teamId, userId, -charge, 'usage', `usage:${id}`, userId, str(row, 'job_id'))
+      if (str(row, 'state') !== 'started') return
+      const counts = usage ?? { inputTokens: 0, outputTokens: 0 }
+      this.db.prepare("UPDATE attempts SET state='settled',response=?,input_tokens=?,output_tokens=? WHERE id=?").run(response, counts.inputTokens, counts.outputTokens, id)
     })
-  }
-
-  /** List retained holds whose task is no longer executing. @returns references for administrator reconciliation. */
-  reviews(): Array<{ id: string; jobId: string; userId: string; teamId: string; reserved: number }> {
-    return this.db.prepare(`SELECT attempts.* FROM attempts JOIN jobs ON jobs.id=attempts.job_id
-      WHERE attempts.state IN ('started','review') AND jobs.state IN ('failed','interrupted')`).all()
-      .map(row => ({ id: str(row, 'id'), jobId: str(row, 'job_id'), userId: str(row, 'user_id'), teamId: str(row, 'team_id'), reserved: num(row, 'reserved') / UNIT }))
-  }
-
-  /**
-   * Reconcile a terminal task using administrator-verified provider usage.
-   * @param id - unsettled request.
-   * @param inputTokens - verified input count.
-   * @param outputTokens - verified output count.
-   * @param actorId - administrator.
-   * @param note - evidence or reason.
-   */
-  resolve(id: string, inputTokens: number, outputTokens: number, actorId: string, note: string): void {
-    const row = this.db.prepare('SELECT * FROM attempts WHERE id=?').get(id)
-    if (!row) throw new HttpError(404, '待核对记录不存在', 'attempt_missing')
-    if (str(row, 'state') === 'settled') return
-    const current = this.job(str(row, 'team_id'), str(row, 'user_id'), str(row, 'job_id'))
-    if (current.state !== 'failed' && current.state !== 'interrupted') throw new HttpError(409, '任务仍在执行，请等待结束', 'job_in_progress')
-    this.settle(id, JSON.stringify({ previous: nullable(row, 'response'), review: { actorId, note, inputTokens, outputTokens, at: new Date().toISOString() } }), { inputTokens, outputTokens }, true)
-  }
-
-  /** Recent point movements for a member. @param teamId - team. @param userId - member. @returns safe ledger fields. */
-  ledger(teamId: string, userId: string): Array<{ id: string; delta: number; kind: string; note: string; createdAt: string }> {
-    return this.db.prepare('SELECT * FROM ledger WHERE team_id=? AND user_id=? ORDER BY rowid DESC LIMIT 50').all(teamId, userId)
-      .map(row => ({ id: str(row, 'id'), delta: num(row, 'delta') / UNIT, kind: str(row, 'kind'), note: str(row, 'note'), createdAt: str(row, 'created_at') }))
   }
 
   /** Read a member's encrypted external binding. @param teamId - team. @param userId - member. @returns private binding or null. */

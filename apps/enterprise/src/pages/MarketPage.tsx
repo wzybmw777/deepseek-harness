@@ -1,4 +1,4 @@
-/** Minimal consumer market and owner-scoped artifact history. */
+/** Consumer market and owner-scoped artifact history. */
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ProductLayout } from '../components/ProductLayout.tsx'
 import { Icon } from '../components/Icon.tsx'
@@ -9,8 +9,10 @@ import { productCopy as c } from '../lib/product-copy.ts'
 import { productTransaction } from '../lib/product-transaction.ts'
 import styles from './Product.module.css'
 
-function points(value: number): string { return value.toLocaleString('zh-CN', { maximumFractionDigits: 6 }) }
-function duration(agent: Agent): string { return agent.durationDays === null ? c.permanent : `${agent.durationDays} ${c.days}` }
+function planSummary(data: Market): string {
+  const limit = data.access.agentLimit === null ? '' : `/${data.access.agentLimit}`
+  return `${data.access.planName} · ${c.planUnlocked} ${data.access.unlocked}${limit}`
+}
 
 /** Consumer market keeps technical settings inside the administrative surface. */
 export function MarketPage(): ReactNode {
@@ -33,6 +35,11 @@ export function MarketPage(): ReactNode {
     const timer = window.setInterval(() => { void refresh() }, 3000)
     return () => { window.clearInterval(timer) }
   }, [pending, refresh])
+
+  const limitReached = data !== null && data.access.agentLimit !== null && data.access.unlocked >= data.access.agentLimit
+  const blocked = (agent: Agent): string => agent.kind === 'team' && data !== null && !data.access.teams
+    ? c.teamsLocked
+    : limitReached && !agent.entitlement?.active && !agent.teamUnlocked ? c.limitReached.replace('{limit}', String(data?.access.agentLimit ?? 0)) : ''
 
   const purchase = async (): Promise<void> => {
     if (!unlock || busy) return
@@ -57,9 +64,9 @@ export function MarketPage(): ReactNode {
   return <ProductLayout>
     <div className={styles.intro}>
       <div><p className={styles.eyebrow}>{c.eyebrow}</p><h1>{c.title}</h1><p>{c.intro}</p></div>
-      {data ? <div className={styles.wallet}><span>{c.balance}</span>
-        <strong>{points(Math.max(0, data.wallet.balance - data.wallet.reserved))}</strong>
-        {data.wallet.reserved > 0 ? <small>{c.held} {points(data.wallet.reserved)}</small> : null}</div> : null}
+      {data ? <div className={styles.wallet}><span>{data.access.planName}</span>
+        <strong>{data.access.unlocked}{data.access.agentLimit === null ? '' : `/${data.access.agentLimit}`}</strong>
+        <small>{data.access.teams ? c.planTeams : c.planNoTeams}</small></div> : null}
     </div>
     {error ? <ErrorPanel message={error} onRetry={() => { void refresh() }} /> : null}
     {!data && !error ? <PageLoader /> : null}
@@ -70,16 +77,16 @@ export function MarketPage(): ReactNode {
             <div className={styles.cardTop}><span className={styles.agentIcon}><Icon name={agent.output === 'pptx' ? 'workspace' : 'spark'} size={22} /></span><span>{agent.category}</span>
               {agent.entitlement?.active ? <Badge tone="success">{c.unlocked}</Badge> : null}</div>
             <h2>{agent.title}</h2><p className={styles.agentDescription}>{agent.description}</p>
-            <div className={styles.tags}><span>{c.outputs[agent.output]}</span><span>{duration(agent)}</span></div>
+            <div className={styles.tags}><span>{c.outputs[agent.output]}</span><span>{agent.group}</span></div>
             <div className={styles.cardBottom}>
-              <span>{agent.entitlement?.active ? (agent.entitlement.expiresAt ? `${c.expiry} ${new Date(agent.entitlement.expiresAt).toLocaleDateString('zh-CN')}` : c.permanent) : `${points(agent.price)} ${c.points}`}</span>
-              <Button variant={agent.entitlement?.active ? 'primary' : 'secondary'} disabled={agent.entitlement?.active ? (!data.wallet.canRun || pending) : !data.wallet.canPurchase}
+              <span>{agent.entitlement?.active ? (agent.entitlement.expiresAt ? `${c.expiry} ${new Date(agent.entitlement.expiresAt).toLocaleDateString('zh-CN')}` : c.permanent) : c.planUnlock}</span>
+              <Button variant={agent.entitlement?.active ? 'primary' : 'secondary'} disabled={busy || (agent.entitlement?.active === true && pending)}
                 onClick={() => { setActionError(null); if (agent.entitlement?.active) setSelected(agent); else setUnlock(agent) }}>
                 {agent.entitlement?.active ? c.use : c.unlock}</Button>
             </div>
           </article>)}
         </section>}
-      <p className={styles.billingNote}>{c.billing}{!data.wallet.canPurchase || !data.wallet.canRun ? ` ${c.notAllowed}` : ''}</p>
+      <p className={styles.billingNote}>{planSummary(data)}</p>
       <section className={styles.history}><div className={styles.sectionHeading}><h2>{c.recent}</h2><Button variant="ghost" size="small" icon="activity" onClick={() => { void refresh() }}>{c.refresh}</Button></div>
         {data.jobs.length === 0 ? <p className={styles.quiet}>{c.noJobs}</p>
           : data.jobs.map(job => <article className={styles.job} key={job.id}>
@@ -87,22 +94,26 @@ export function MarketPage(): ReactNode {
             <p className={styles.jobInput}>{job.input}</p>
             {job.result ? <p className={styles.result}>{job.result}</p> : null}
             {job.error ? <p className={styles.failure} role="alert">{job.error}</p> : null}
-            <footer><small>{c.charged} {points(job.charged)} {c.points}</small>
-              {job.artifact && job.state === 'completed' ? <a className="button button-primary button-small" href={productApi.download(job.id)}>{c.download}</a> : null}</footer>
+            <footer>{job.artifact && job.state === 'completed' ? <a className="button button-primary button-small" href={productApi.download(job.id)}>{c.download}</a> : null}</footer>
           </article>)}
       </section>
-      <details className={styles.ledger}><summary>{c.ledger}</summary>{data.ledger.length === 0 ? <p>{c.noLedger}</p> : data.ledger.map(row => <div key={row.id}><span>{c.ledgerKinds[row.kind as keyof typeof c.ledgerKinds] ?? row.kind}</span><time>{new Date(row.createdAt).toLocaleString('zh-CN')}</time><span>{row.delta > 0 ? '+' : ''}{points(row.delta)}</span></div>)}</details>
     </> : null}
-    <Modal open={unlock !== null} onClose={() => { if (!busy) setUnlock(null) }} title={c.unlockTitle} description={c.unlockDetail}
-      footer={<><Button disabled={busy} onClick={() => { setUnlock(null) }}>{c.cancel}</Button><Button variant="primary" loading={busy} onClick={() => { void purchase() }}>{c.confirm}</Button></>}>
+    <Modal open={unlock !== null} title={c.unlockTitle} description={c.unlockDetail}
+      onClose={() => { if (!busy) { setUnlock(null); setActionError(null) } }}
+      footer={<>
+        <Button disabled={busy} onClick={() => { setUnlock(null) }}>{c.cancel}</Button>
+        <Button variant="primary" loading={busy} disabled={unlock === null || blocked(unlock) !== ''}
+          onClick={() => { void purchase() }}>{c.confirm}</Button>
+      </>}>
       {unlock ? <div className={styles.unlock}>
-        <h3>{unlock.title}</h3><p>{points(unlock.price)} {c.points} · {duration(unlock)}</p><p>{c.billing}</p></div> : null}
+        <h3>{unlock.title}</h3><p>{unlock.group} · {unlock.category}</p><p>{c.billing}</p>
+        {blocked(unlock) ? <p className={styles.failure} role="note">{blocked(unlock)}</p> : null}</div> : null}
       {actionError ? <p className={styles.failure} role="alert">{actionError}</p> : null}
     </Modal>
     <Modal open={selected !== null} onClose={() => { if (!busy) setSelected(null) }} title={selected?.title ?? c.market}
       footer={<><Button disabled={busy} onClick={() => { setSelected(null) }}>{c.cancel}</Button><Button variant="primary" disabled={!input.trim() || pending} loading={busy} onClick={() => { void run() }}>{selected?.output === 'pptx' ? c.quick : c.submit}</Button></>}>
       <Field label={c.material} htmlFor="agent-material" hint={c.materialHelp}><Textarea disabled={busy} id="agent-material" rows={10} value={input} maxLength={30_000} placeholder={c.materialHint} onChange={(event) => { setInput(event.target.value) }} /></Field>
-      <p className={styles.quiet}>{c.executionNote}</p>{actionError ? <p className={styles.failure} role="alert">{actionError}</p> : null}
+      {actionError ? <p className={styles.failure} role="alert">{actionError}</p> : null}
     </Modal>
   </ProductLayout>
 }

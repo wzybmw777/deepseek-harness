@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Agent hub",
+    "description": "Built-in enterprise operator agents plus the team resource workbench, grouped by task with diagnosis, planning, and execution guidance.",
+    "detail": "docs/DETAIL.md"
+  }
+}

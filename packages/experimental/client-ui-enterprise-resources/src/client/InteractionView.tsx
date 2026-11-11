@@ -44,7 +44,7 @@ export function InteractionView({ node, t }: InteractionProps): ReactNode {
         setJob(next); setError(null)
         if (seenState.current !== next.state) {
           seenState.current = next.state
-          window.dispatchEvent(new Event('dsh-enterprise-points-changed'))
+          window.dispatchEvent(new Event('dsh-enterprise-access-changed'))
         }
         if (next.state === 'queued' || next.state === 'running') timer = setTimeout(() => { void load() }, 3000)
       } catch (caught) { if (active) setError(describeError(caught, t, 'error.load')) }
@@ -60,8 +60,7 @@ export function InteractionView({ node, t }: InteractionProps): ReactNode {
       : job ? <><p className={css.interactionInput}>{job.input}</p>
         {job.result ? <div className={css.interactionAnswer}>{job.result}</div> : null}
         {job.error ? <FormError message={job.error} /> : null}
-        <footer><span>{t('market.charged', { amount: new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 }).format(job.charged) })}</span>
-          {job.state === 'completed' && job.artifact ? <a className={css.download} href={workbenchProducts.download(job.id)}>{t('market.download')}</a> : null}</footer>
+        <footer>{job.state === 'completed' && job.artifact ? <a className={css.download} href={workbenchProducts.download(job.id)}>{t('market.download')}</a> : null}</footer>
       </> : !error ? <LoadingState label={t('common.loading')} /> : null}
     {error ? <div className={css.interactionError}><FormError message={error} /><Button size="sm" onClick={() => { setRetry(value => value + 1) }}>{t('common.retry')}</Button></div> : null}
   </article>

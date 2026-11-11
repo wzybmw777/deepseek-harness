@@ -17,6 +17,11 @@ const SESSION_GUARD_STYLES = String.raw`
     display: none !important;
   }
 
+  /* The legacy agency-agents composer switch duplicates the curated agent catalog. */
+  html[data-dsh-enterprise] #aag-composer-mode {
+    display: none !important;
+  }
+
   html[data-dsh-enterprise] [data-slot="sidebar.brand.name"] [class*="buildVersion"] {
     display: none !important;
   }
@@ -759,7 +764,7 @@ export function createHarnessSessionGuardScript(publicPathPrefix: string): strin
     quota = element('button')
     quota.type = 'button'
     quota.setAttribute('data-dsh-enterprise-quota', '')
-    quota.setAttribute('aria-label', '查看套餐与积分')
+    quota.setAttribute('aria-label', '查看套餐与用量')
     quota.setAttribute('aria-haspopup', 'dialog')
     quota.setAttribute('aria-expanded', 'false')
     quota.setAttribute('aria-controls', 'enterprise-usage-summary')
@@ -820,7 +825,7 @@ export function createHarnessSessionGuardScript(publicPathPrefix: string): strin
     quotaBar.setAttribute('data-tone', percent >= 90 ? 'danger' : percent >= 70 ? 'warning' : 'normal')
     quotaPlan.textContent = plan
     quota.title = '本月套餐使用进度 ' + Math.round(percent) + '%'
-    quota.setAttribute('aria-label', plan + '，本月已用 ' + Math.round(percent) + '%，查看套餐与积分')
+    quota.setAttribute('aria-label', plan + '，本月已用 ' + Math.round(percent) + '%，查看套餐与用量')
   }
 
   function chevron(up) {
@@ -909,7 +914,7 @@ export function createHarnessSessionGuardScript(publicPathPrefix: string): strin
     billingItem.setAttribute('data-enterprise-action', 'billing')
     billingItem.className = 'dsh-ent-menu-item'
     billingItem.appendChild(icon('<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/>'))
-    var billingLabel = element('span', '套餐与积分')
+    var billingLabel = element('span', '套餐与用量')
     billingLabel.className = 'dsh-ent-menu-label'
     billingItem.appendChild(billingLabel)
     body.appendChild(billingItem)

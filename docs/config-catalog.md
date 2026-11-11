@@ -902,7 +902,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-enterprise-console`
 
 - `inject`: `webServer` · `webApp` · `connection`
-- `source`: [`packages/experimental/enterprise-console/src/index.ts:43`](../packages/experimental/enterprise-console/src/index.ts)
+- `source`: [`packages/experimental/enterprise-console/src/index.ts:44`](../packages/experimental/enterprise-console/src/index.ts)
 
 ```ts config-catalog
 /** Enterprise console deployment settings. */
@@ -917,6 +917,8 @@ export interface Config {
   readonly productFeilianTimeoutMs: number
   /** Installed PPT Master Skill directory; omit to keep PPT products unavailable. */
   readonly productPptSkillRoot?: string
+  /** Shipped agent catalog file; omit to read the agent-hub bundle beside this package. */
+  readonly productAgentCatalog?: string
   /** Python environment containing the PPT Master exporter dependencies. */
   readonly productPython: string
   /** Timeout for a single product model request. */
@@ -5144,6 +5146,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 <!-- BEGIN GENERATED config-catalog:library -->
 | `package` | `inject` | `source` |
 | --- | --- | --- |
+| `@deepseek-ai/dsh-agent-hub-bundle` | — | [`packages/experimental/agent-hub-bundle/src/index.ts`](../packages/experimental/agent-hub-bundle/src/index.ts) |
 | `@deepseek-ai/dsh-agent-loop-testkit` | — | [`packages/test-support/agent-loop-testkit/src/index.ts`](../packages/test-support/agent-loop-testkit/src/index.ts) |
 | `@deepseek-ai/dsh-anonymous-user-id` | — | [`packages/identity/anonymous-user-id/src/index.ts`](../packages/identity/anonymous-user-id/src/index.ts) |
 | `@deepseek-ai/dsh-app-boot` | — | [`packages/boot/app-boot/src/index.ts`](../packages/boot/app-boot/src/index.ts) |

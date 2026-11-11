@@ -23,7 +23,7 @@ async function fixture() {
     draft.users.push({ ...owner, id: 'member', name: 'Member', email: 'member@example.com', roleId: 'role-member' })
   })
   const draft = products.agent('ppt-studio')
-  products.saveAgent({ ...draft, modelId: 'model-deepseek-chat', systemPrompt: 'PRIVATE_PROMPT', skill: 'PRIVATE_SKILL', published: true, price: 5 })
+  products.saveAgent({ ...draft, modelId: 'model-deepseek-chat', systemPrompt: 'PRIVATE_PROMPT', skill: 'PRIVATE_SKILL', published: true })
   const launched: string[] = []
   const api = await EnterpriseApi.create({
     publicPathPrefix: '/yituobo', store, resources: new TeamResources(join(directory, 'tenants')),
@@ -56,44 +56,56 @@ async function fixture() {
     products.close(); await store.close()
     await rm(directory, { recursive: true, force: true })
   })
-  return { store, products, call, launched }
+  const addAgents = (count: number, overrides: Record<string, unknown> = {}) =>
+    Array.from({ length: count }, (_, index) => products.saveAgent({
+      ...draft, id: `agent-${String(index)}`, title: `Agent ${String(index)}`, published: true, ...overrides,
+    }))
+  return { store, products, call, launched, addAgents, draft }
 }
 
 describe('product API over console identity', () => {
-  it('returns only the authenticated member wallet in the compact summary', async () => {
-    const { call, products } = await fixture()
-    products.credit('team-default', 'user-owner', 40, 'owner-credit', 'user-owner', 'fixture')
+  it('returns plan-based agent access in the compact summary', async () => {
+    const { call } = await fixture()
     expect((await call('/summary')).status).toBe(401)
     const member = await call('/summary', 'member')
     expect(member.status).toBe(200)
-    expect(Object.keys(member.body)).toEqual(['wallet'])
-    expect(member.body.wallet.balance).toBe(0)
-    expect((await call('/summary', 'user-owner')).body.wallet.balance).toBe(40)
+    expect(Object.keys(member.body)).toEqual(['access'])
+    expect(member.body.access).toMatchObject({ planCode: 'team', planName: '团队版', agentLimit: 10, teams: false, unlocked: 0 })
   })
+
   it('requires login, conceals prompts, and prevents member access to administrative transactions', async () => {
-    const { call, products } = await fixture()
+    const { call } = await fixture()
     expect((await call('/market')).status).toBe(401)
     const market = await call('/market', 'member')
     expect(market.status).toBe(200)
     expect(JSON.stringify(market.body)).not.toContain('PRIVATE_')
+    expect(JSON.stringify(market.body)).not.toContain('wallet')
+    expect(market.body.agents[0]).toMatchObject({ group: '办公创作', icon: 'document', recommended: true })
+    expect(market.body.agents[0].tasks).toContain('汇报材料')
+    expect(market.body.access).toMatchObject({ planCode: 'team', agentLimit: 10 })
     expect((await call('/admin/catalog', 'member')).status).toBe(403)
     expect((await call('/admin/credit', 'member', { userId: 'member', teamId: 'team-default', points: 100, key: 'attack', note: 'credit' })).status).toBe(403)
-    expect(products.wallet('team-default', 'member').balance).toBe(0)
     expect((await call('/admin/catalog', 'user-owner')).body.agents[0].systemPrompt).toBe('PRIVATE_PROMPT')
   })
 
-  it('enforces same-origin mutations, configures rates, and admits an unlocked member task once', async () => {
-    const { call, products, launched } = await fixture()
-    expect((await call('/admin/rates', 'user-owner', { input: 100, output: 400 }, 'https://other.example')).status).toBe(403)
-    expect(products.rates()).toBeNull()
-    expect((await call('/admin/rates', 'user-owner', { input: 100, output: 400 })).status).toBe(200)
-    expect((await call('/admin/wallet', 'user-owner', { userId: 'member', teamId: 'team-default', canRun: true, canPurchase: true })).status).toBe(200)
-    expect((await call('/admin/credit', 'user-owner', { userId: 'member', teamId: 'team-default', points: 100, key: 'credit', note: 'trial' })).status).toBe(200)
+  it('removes rate, wallet, credit, and reconciliation administration', async () => {
+    const { call } = await fixture()
+    expect((await call('/admin/rates', 'user-owner', { input: 100, output: 400 })).status).toBe(404)
+    expect((await call('/admin/wallet', 'user-owner', { userId: 'member', teamId: 'team-default', canRun: true, canPurchase: true })).status).toBe(404)
+    expect((await call('/admin/credit', 'user-owner', { userId: 'member', teamId: 'team-default', points: 100, key: 'credit', note: 'trial' })).status).toBe(404)
+    expect((await call('/admin/reconcile', 'user-owner', { id: 'attempt', inputTokens: 1, outputTokens: 1, note: 'x' })).status).toBe(404)
+    const catalog = await call('/admin/catalog', 'user-owner')
+    expect(catalog.body).not.toHaveProperty('rates')
+    expect(catalog.body).not.toHaveProperty('reviews')
+    expect(catalog.body.teams[0]).toMatchObject({ planCode: 'team', agentLimit: 10, teams: false })
+  })
+
+  it('admits an unlocked member task once without points', async () => {
+    const { call, launched } = await fixture()
     expect((await call('/jobs', 'member', { agentId: 'ppt-studio', input: 'Source material', key: 'job' })).status).toBe(403)
     const purchase = { agentId: 'ppt-studio', key: 'purchase' }
     expect((await call('/purchase', 'member', purchase)).status).toBe(200)
     expect((await call('/purchase', 'member', purchase)).status).toBe(200)
-    expect(products.wallet('team-default', 'member').balance).toBe(95)
     const submitted = { agentId: 'ppt-studio', input: 'Source material', key: 'job' }
     const first = await call('/jobs', 'member', submitted)
     expect(first.status).toBe(202)
@@ -103,12 +115,53 @@ describe('product API over console identity', () => {
     expect((await call(`/jobs/${first.body.id}/download`, 'user-owner')).status).toBe(404)
   })
 
+  it('caps the team plan at ten distinct agents', async () => {
+    const { call, addAgents } = await fixture()
+    const agents = addAgents(10)
+    for (const agent of [ { id: 'ppt-studio' }, ...agents.slice(0, 9) ]) {
+      expect((await call('/purchase', 'member', { agentId: agent.id, key: `unlock-${agent.id}` })).status).toBe(200)
+    }
+    expect((await call('/market', 'member')).body.access).toMatchObject({ unlocked: 10, agentLimit: 10 })
+    const blocked = await call('/purchase', 'member', { agentId: 'agent-9', key: 'unlock-eleven' })
+    expect(blocked.status).toBe(409)
+    expect(blocked.body.error.code).toBe('plan_agent_limit')
+    expect((await call('/purchase', 'user-owner', { agentId: 'agent-0', key: 'share-agent-0' })).status).toBe(200)
+  })
+
+  it('lets Business unlock every agent but no expert team', async () => {
+    const { call, store, addAgents } = await fixture()
+    await store.mutate((data) => { data.teams.find(team => team.id === 'team-default')!.planId = 'plan-business' })
+    const agents = addAgents(10)
+    for (const agent of [ { id: 'ppt-studio' }, ...agents ]) {
+      expect((await call('/purchase', 'member', { agentId: agent.id, key: `unlock-${agent.id}` })).status).toBe(200)
+    }
+    const teamAgent = addAgents(1, { id: 'team-review', title: 'Review team', kind: 'team', members: ['ppt-studio'] })[0]!
+    const blocked = await call('/purchase', 'member', { agentId: teamAgent.id, key: 'unlock-team' })
+    expect(blocked.status).toBe(403)
+    expect(blocked.body.error.code).toBe('plan_teams_locked')
+    expect((await call('/jobs', 'member', { agentId: teamAgent.id, input: 'Review', key: 'team-job' })).status).toBe(403)
+  })
+
+  it('lets Enterprise unlock expert teams', async () => {
+    const { call, store, addAgents } = await fixture()
+    await store.mutate((data) => { data.teams.find(team => team.id === 'team-default')!.planId = 'plan-enterprise' })
+    const teamAgent = addAgents(1, { id: 'team-review', title: 'Review team', kind: 'team', members: ['ppt-studio'] })[0]!
+    expect((await call('/purchase', 'member', { agentId: teamAgent.id, key: 'unlock-team' })).status).toBe(200)
+    expect((await call('/market', 'member')).body.access).toMatchObject({ planCode: 'enterprise', agentLimit: null, teams: true })
+  })
+
   it('rechecks disabled organization members and refuses publishing an unprovisioned executor', async () => {
     const { call, store } = await fixture()
     await store.mutate((draft) => { draft.users.find(item => item.id === 'member')!.status = 'disabled' })
     expect((await call('/market', 'member')).status).toBe(401)
-    const invalid = await call('/admin/agents', 'user-owner', { id: 'bad', title: 'Bad', description: 'Bad executor', category: 'Test', executor: 'arbitrary-command', price: 0, durationDays: 30, published: true, modelId: 'model-deepseek-chat', systemPrompt: 'text', skill: 'text' })
+    const invalid = await call('/admin/agents', 'user-owner', { id: 'bad', title: 'Bad', description: 'Bad executor', category: 'Test', executor: 'arbitrary-command', published: true, modelId: 'model-deepseek-chat', systemPrompt: 'text', skill: 'text' })
     expect(invalid.status).toBe(400)
-    expect((await call('/admin/agents', 'user-owner', { id: 'video', title: 'Video', description: 'Video executor', category: 'Test', executor: 'video', price: 0, durationDays: 30, published: true, modelId: 'model-deepseek-chat', systemPrompt: 'text', skill: 'text' })).status).toBe(409)
+    expect((await call('/admin/agents', 'user-owner', { id: 'video', title: 'Video', description: 'Video executor', category: 'Test', executor: 'video', published: true, modelId: 'model-deepseek-chat', systemPrompt: 'text', skill: 'text' })).status).toBe(409)
+  })
+
+  it('exposes no admin route for importing a catalog; storage seeds it on open', async () => {
+    const { call } = await fixture()
+    expect((await call('/admin/catalog/bootstrap', 'user-owner', {})).status).toBe(404)
+    expect((await call('/market', 'member')).body.agents).toHaveLength(1)
   })
 })
