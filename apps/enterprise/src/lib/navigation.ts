@@ -28,7 +28,6 @@ export const ADMIN_NAVIGATION: AdminNavGroup[] = [
     items: [
       { path: '/enterprise/resources/files', label: '文件', shortLabel: '文件', icon: 'workspace', permission: 'workspace.use' },
       { path: '/enterprise/resources/knowledge', label: '知识库', shortLabel: '知识', icon: 'models', permission: 'workspace.use' },
-      { path: '/enterprise/feilian', label: '飞链知识库', shortLabel: '飞链', icon: 'models', permission: 'workspace.use' },
       { path: '/enterprise/resources/skills', label: '技能', shortLabel: '技能', icon: 'spark', permission: 'workspace.resources.write' },
     ],
   },

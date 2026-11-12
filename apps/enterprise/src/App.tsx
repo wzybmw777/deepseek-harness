@@ -11,7 +11,6 @@ import { Link, navigate, RouterProvider, useLocation } from './lib/router.tsx'
 import { AccountPage } from './pages/AccountPage.tsx'
 import { MarketPage } from './pages/MarketPage.tsx'
 import { AgentAdminPage } from './pages/AgentAdminPage.tsx'
-import { FeilianPage } from './pages/FeilianPage.tsx'
 import { AuditPage } from './pages/AuditPage.tsx'
 import { BillingPage } from './pages/BillingPage.tsx'
 import { ChannelsPage } from './pages/ChannelsPage.tsx'
@@ -144,7 +143,6 @@ function Routes(): ReactNode {
   if (isLogin) return <LoginPage />
   if (isLaunchGate) return <BootScreen />
   if (session === null) return <BootScreen />
-  if (pathname === '/enterprise/feilian') return can('workspace.use') ? <FeilianPage /> : <AccessDenied />
   if (pathname === '/enterprise/agents') return can('workspace.use') ? <MarketPage /> : <AccessDenied />
   if (isAccount) return <AdminLayout><AccountPage /></AdminLayout>
   if (isBilling) {
