@@ -28,6 +28,7 @@ export const EXPERIMENTAL_PACKAGE_NAME_EXCEPTIONS: Readonly<Record<string, strin
   'packages/experimental/client-ui-enterprise-resources': '@deepseek-ai/dsh-client-ui-enterprise-resources',
   'packages/experimental/enterprise-console': '@deepseek-ai/dsh-enterprise-console',
   'packages/experimental/enterprise-desktop': '@deepseek-ai/dsh-enterprise-desktop',
+  'packages/experimental/feilian-kb': '@deepseek-ai/dsh-feilian-kb',
 } satisfies Record<`packages/experimental/${string}`, `@deepseek-ai/dsh-${string}`>
 
 /** Legacy npm namespace, allowed only in `LEGACY_PREFIXED_EXPERIMENTAL_PACKAGE_DIRECTORIES`. */

@@ -129,6 +129,7 @@
     { "path": "./packages/client/ui-subagent" },
     { "path": "./packages/client/ui-agent-team" },
     { "path": "./packages/experimental/client-ui-enterprise-resources" },
+    { "path": "./packages/experimental/feilian-kb" },
     { "path": "./packages/experimental/enterprise-desktop/tsconfig.client.json" },
     { "path": "./packages/experimental/client-ui-stats" },
     { "path": "./packages/client/ui-dockkit" },

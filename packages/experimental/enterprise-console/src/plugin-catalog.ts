@@ -16,6 +16,7 @@ const DEFAULT_ENABLED: ReadonlySet<string> = new Set(['@deepseek-ai/dsh-agent-hu
 
 const BUILTIN_LABELS: Readonly<Record<string, { label: string; description: string }>> = {
   '@deepseek-ai/dsh-agent-hub-bundle': { label: '智能体中心', description: '企业经营参谋目录与团队资源工作台。' },
+  '@deepseek-ai/dsh-feilian-kb': { label: '飞链知识库', description: '登录飞链企业知识库，查看来源与编排目录、知识图谱，并配置办公机器人。' },
   '@deepseek-ai/dsh-personalized-recommendations': { label: '个性推荐', description: '基于当前工作内容提供建议。' },
   '@deepseek-ai/dsh-experimental-session-search': { label: '会话搜索', description: '搜索历史会话。' },
   '@deepseek-ai/dsh-experimental-ralph-bundle': { label: 'Ralph', description: '自主迭代任务执行。' },

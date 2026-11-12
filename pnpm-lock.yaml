@@ -381,6 +381,9 @@ importers:
       '@deepseek-ai/dsh-experimental-voice-input-bundle':
         specifier: workspace:*
         version: link:../../packages/experimental/voice-input-bundle
+      '@deepseek-ai/dsh-feilian-kb':
+        specifier: workspace:*
+        version: link:../../packages/experimental/feilian-kb
       '@deepseek-ai/dsh-fs-local':
         specifier: workspace:*
         version: link:../../packages/fs/fs-local
@@ -10195,6 +10198,12 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+
+  packages/experimental/feilian-kb:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
 
   packages/experimental/forge:
     dependencies:

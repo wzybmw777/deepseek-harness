@@ -1,0 +1,3 @@
+- insert:
+    - id: feilian-kb
+      name: '@deepseek-ai/dsh-feilian-kb'

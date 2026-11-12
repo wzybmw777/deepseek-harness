@@ -1,0 +1,40 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/feilian-kb/README.md
+/:
+  en: 8e16f740316ac596
+  zh: 8e0a484877fbcfc6
+/deepseek-ai-dsh-feilian-kb:
+  en: cbb0aa702fc1b100
+  zh: 374c88d9e8873fe3
+/deepseek-ai-dsh-feilian-kb/summary:
+  en: 51ba5edd3ec29849
+  zh: de96ef1e1c1a40d3
+/deepseek-ai-dsh-feilian-kb/table-of-contents:
+  en: 3460b3e585e0c020
+  zh: 534791af20aa1773
+/deepseek-ai-dsh-feilian-kb/use-this-package:
+  en: 0c7da512c95f9992
+  zh: bd0b5f031dfad652
+/deepseek-ai-dsh-feilian-kb/understand-the-implementation:
+  en: 2aa51220fcd1f4ce
+  zh: 3f99187f17596685
+/deepseek-ai-dsh-feilian-kb/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-feilian-kb/model-experience/knowledge-tools:
+  en: 6870d8b99f6284d3
+  zh: b9425a76215a05fd
+/deepseek-ai-dsh-feilian-kb/model-experience/knowledge-tools/what-the-model-sees:
+  en: 2962ab430f10e37b
+  zh: f09e19fb75d4e488
+/deepseek-ai-dsh-feilian-kb/model-experience/knowledge-tools/token-effect:
+  en: 8a282c34d6cb1d39
+  zh: ba035997a6817cdf
+/deepseek-ai-dsh-feilian-kb/model-experience/knowledge-tools/kv-cache-effect:
+  en: 9098964c130ca8ca
+  zh: fdfdfd92341632da
+/deepseek-ai-dsh-feilian-kb/known-limitations-and-deferred-work:
+  en: 15395f3ad57deedb
+  zh: 25b450c34f65c910
