@@ -6,7 +6,7 @@ import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { FilesPanel } from './FilesPanel.tsx'
-import { KnowledgePanel } from './FeilianPanel.tsx'
+import { InternalKnowledgePanel } from './KnowledgePanel.tsx'
 import { SkillsPanel } from './SkillsPanel.tsx'
 import { MarketPanel } from './MarketPanel.tsx'
 import { UsageSummary } from './UsageSummary.tsx'
@@ -81,8 +81,7 @@ export function apply(ctx: ClientContext): void {
       name: 'main',
       key: RESOURCE_PANEL_IDS.knowledge,
       locale: NS,
-      inject: () => ({ useKnowledge: (id: string, title: string) => openProductConversation(ctx, { kind: 'knowledge', id, title }) }),
-    }, KnowledgePanel)
+    }, InternalKnowledgePanel)
     yield ctx.slots.register({
       name: 'main',
       key: RESOURCE_PANEL_IDS.skills,

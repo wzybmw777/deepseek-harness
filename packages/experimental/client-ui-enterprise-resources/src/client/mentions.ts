@@ -143,15 +143,13 @@ export function registerProductMentions(ctx: Context, t: Translate): () => void 
             section: t(item.kind === 'agent' ? 'mention.agents' : 'knowledge.feilian'),
             value: JSON.stringify(item),
           }))
-          .concat(request.position === 'leading' && request.query === '' ? [
-            kind === 'agent'
-              ? { name: t('mention.market'), label: t('mention.market'), description: t('mention.marketHint'), icon: IconSkillOutlineRegular, section: t('mention.agents'), value: 'market' }
-              : { name: t('mention.manageKnowledge'), label: t('mention.manageKnowledge'), description: t('feilian.bindingHint'), icon: IconDatabaseOutlineRegular, section: t('knowledge.feilian'), value: 'knowledge' },
+          .concat(kind === 'agent' && request.position === 'leading' && request.query === '' ? [
+            { name: t('mention.market'), label: t('mention.market'), description: t('mention.marketHint'), icon: IconSkillOutlineRegular, section: t('mention.agents'), value: 'market' },
           ] : [])
       },
       onPick(pick) {
         const value = pick.candidate.value
-        if (value === 'market' || value === 'knowledge') { window.dispatchEvent(new CustomEvent('dsh-enterprise-resource-open', { detail: value })); return 'handled' }
+        if (value === 'market') { window.dispatchEvent(new CustomEvent('dsh-enterprise-resource-open', { detail: value })); return 'handled' }
         if (!value) return undefined
         const item = JSON.parse(value) as Item
         if (item.kind === 'agent') rememberAgent(item.id)
