@@ -8,7 +8,6 @@ import { booleanField, HttpError, integerField, readJson, sameOriginMutation, se
 import type { EnterpriseStore } from './store.ts'
 import { ProductStore } from './product-store.ts'
 import type { AgentIcon, AgentProduct, PublicAgent } from './product-types.ts'
-import type { ProductFeilian } from './product-feilian.ts'
 import { planAgentAccess, type PlanAgentAccess } from './plan-access.ts'
 
 /** Invocation and delivery implementation supplied by the product runtime. */
@@ -100,7 +99,7 @@ export class ProductApi {
    */
   constructor(
     readonly products: ProductStore, private readonly enterprise: EnterpriseStore,
-    private readonly runner?: ProductRunner, private readonly feilian?: ProductFeilian,
+    private readonly runner?: ProductRunner,
   ) {}
 
   /**
@@ -125,7 +124,7 @@ export class ProductApi {
     const admin = url.pathname.startsWith(`${PREFIX}/admin/`)
     if (admin && !role.permissions.includes('settings.write')) throw new HttpError(403, '当前账号没有产品管理权限', 'forbidden')
     const path = url.pathname.slice(PREFIX.length)
-    const access: PlanAgentAccess | undefined = team === undefined || team === null
+    const access: PlanAgentAccess | undefined = team === undefined
       ? undefined
       : planAgentAccess(catalog.plans.find(candidate => candidate.id === team.planId))
 
@@ -173,26 +172,6 @@ export class ProductApi {
     if (access === undefined) throw new HttpError(403, '请联系管理员分配有效的工作空间', 'team_unavailable')
     if (path === '/summary' && method === 'GET') {
       sendJson(response, 200, { access: { ...access, unlocked: this.products.unlockedAgents(team.id) } }); return true
-    }
-    if (path === '/feilian' && method === 'GET') {
-      if (!this.feilian) throw new HttpError(503, '飞链服务尚未配置', 'feilian_unavailable')
-      sendJson(response, 200, await this.feilian.status(team.id, user.id)); return true
-    }
-    if (path.startsWith('/feilian/') && method === 'POST') {
-      if (!this.feilian) throw new HttpError(503, '飞链服务尚未配置', 'feilian_unavailable')
-      if (path === '/feilian/bind') {
-        const password = body.password
-        if (typeof password !== 'string' || !password || password.length > 200) throw new HttpError(400, '请输入有效的飞链账号密码', 'invalid_password')
-        await this.feilian.bind(team.id, user.id, textField(body.email, '飞链邮箱', 320), password,
-          typeof body.tenantSlug === 'string' && body.tenantSlug.trim() ? textField(body.tenantSlug, '飞链工作空间', 100) : undefined)
-        sendJson(response, 200, { bound: true }); return true
-      }
-      if (path === '/feilian/unbind') {
-        await this.feilian.unbind(team.id, user.id); sendJson(response, 200, { bound: false }); return true
-      }
-      if (path === '/feilian/query') {
-        sendJson(response, 200, await this.feilian.query(team.id, user.id, textField(body.knowledgeBaseId, '知识库', 200), textField(body.question, '问题', 10_000))); return true
-      }
     }
     if (path === '/market' && method === 'GET') {
       const catalog = this.products.agents()

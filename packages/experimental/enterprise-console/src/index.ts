@@ -19,7 +19,6 @@ import { loadAgentCatalogSeed } from './agent-catalog.ts'
 import { ProductApi } from './product-api.ts'
 import { ProductStore } from './product-store.ts'
 import { ProductRuntime } from './product-runtime.ts'
-import { ProductFeilian } from './product-feilian.ts'
 import { resolvePublicPathPrefix } from './public-path.ts'
 import { SharedEnterprisePluginInstaller } from './plugin-installer.ts'
 import { tenantPluginPolicy } from './plugin-policy.ts'
@@ -42,14 +41,6 @@ export const inject = ['webServer', 'webApp', 'connection']
 
 /** Enterprise console deployment settings. */
 export interface Config {
-  /** Independent Feilian API origin, reachable from this service. */
-  readonly productFeilianBaseUrl?: string
-  /** Public Feilian registration entry; its account and plan stay independent. */
-  readonly productFeilianRegistrationUrl?: string
-  /** Provisioning portal responsible for checking enterprise eligibility. */
-  readonly productFeilianEnterpriseUrl?: string
-  /** Timeout for Feilian authorization and query requests. */
-  readonly productFeilianTimeoutMs: number
   /** Installed PPT Master Skill directory; omit to keep PPT products unavailable. */
   readonly productPptSkillRoot?: string
   /** Shipped agent catalog file; omit to read the agent-hub bundle beside this package. */
@@ -127,10 +118,6 @@ export interface Config {
 }
 
 export const Config: z<Config> = z.object({
-  productFeilianBaseUrl: z.string(),
-  productFeilianRegistrationUrl: z.string(),
-  productFeilianEnterpriseUrl: z.string(),
-  productFeilianTimeoutMs: z.natural().default(120_000),
   productPptSkillRoot: z.string(),
   productAgentCatalog: z.string(),
   productPython: z.string().default('python3'),
@@ -189,7 +176,7 @@ const MIME: Readonly<Record<string, string>> = {
 
 function assertConfig(config: Config): void {
   if (!config.productPython.trim() || config.productModelTimeoutMs < 1 || config.productExportTimeoutMs < 1
-    || config.productMaxOutputTokens < 1 || config.productConcurrency < 1 || config.productFeilianTimeoutMs < 1) throw new Error('enterprise-console: product execution settings must be positive and include a Python executable')
+    || config.productMaxOutputTokens < 1 || config.productConcurrency < 1) throw new Error('enterprise-console: product execution settings must be positive and include a Python executable')
   resolvePublicPathPrefix(config.publicPathPrefix ?? '')
   if (config.distRoot.trim() === '') throw new Error('enterprise-console: distRoot must not be empty')
   if (config.dataDir.trim() === '') throw new Error('enterprise-console: dataDir must not be empty')
@@ -447,12 +434,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
         modelTimeoutMs: config.productModelTimeoutMs, exportTimeoutMs: config.productExportTimeoutMs,
         maxOutputTokens: config.productMaxOutputTokens, concurrency: config.productConcurrency,
       }, (error) => { ctx.logger.warn(error) })
-      return new ProductApi(products, opened.store, productRunner, new ProductFeilian(products, opened.store.credentialKey, {
-        ...(config.productFeilianBaseUrl === undefined ? {} : { baseUrl: config.productFeilianBaseUrl }),
-        ...(config.productFeilianRegistrationUrl === undefined ? {} : { registrationUrl: config.productFeilianRegistrationUrl }),
-        ...(config.productFeilianEnterpriseUrl === undefined ? {} : { enterpriseUrl: config.productFeilianEnterpriseUrl }),
-        timeoutMs: config.productFeilianTimeoutMs,
-      }))
+      return new ProductApi(products, opened.store, productRunner)
     })(),
     publicPathPrefix,
     store: opened.store,

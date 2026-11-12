@@ -26,26 +26,17 @@ function fixture() {
   registerProductMentions(context as never, makeTranslate(zh))
   vi.spyOn(workbenchProducts, 'identity').mockResolvedValue(member)
   vi.spyOn(workbenchProducts, 'market').mockResolvedValue({ access, agents: [agent], jobs: [] })
-  vi.spyOn(workbenchProducts, 'feilian').mockResolvedValue({ available: true, bound: true, state: 'connected', knowledgeBases: [{ id: 'kb-a', name: '产品资料' }] })
-  return { source: sources[0]!, knowledge: sources[1]!, execute, actx }
+  return { source: sources[0]!, execute, actx }
 }
 
-describe('@ products', () => {
-  it('offers unlocked agents and bound libraries; inline picks only offer knowledge', async () => {
-    const { source, knowledge } = fixture()
+describe('@ agents', () => {
+  it('offers only unlocked agents and never opens an inline menu', async () => {
+    const { source } = fixture()
     const session = { sessionId: 'session-a' } as never
     const request = { query: '', position: 'leading', drilled: false, signal: new AbortController().signal } as const
-    const rows = [...await source.candidates(session, request), ...await knowledge.candidates(session, request)]
-    expect(rows.map(row => row.name)).toMatchInlineSnapshot(`
-      [
-        "文案助手",
-        "发现更多智能体",
-        "产品资料",
-        "打开飞链知识库",
-      ]
-    `)
-    const inline = [...await source.candidates(session, { ...request, position: 'inline' }), ...await knowledge.candidates(session, { ...request, position: 'inline' })]
-    expect(inline.map(row => row.name)).toEqual(['产品资料'])
+    const rows = await source.candidates(session, request)
+    expect(rows.map(row => row.name)).toEqual(['文案助手', '发现更多智能体'])
+    expect(await source.candidates(session, { ...request, position: 'inline' })).toEqual([])
     vi.mocked(workbenchProducts.market).mockResolvedValue({
       access, agents: [{ ...agent, entitlement: { active: false, expiresAt: null } }], jobs: [],
     })
@@ -65,17 +56,5 @@ describe('@ products', () => {
     expect(run.mock.calls[0]?.[2]).toBe(run.mock.calls[1]?.[2])
     expect(execute).toHaveBeenLastCalledWith('session-a', '/enterprise-task {"kind":"agent","jobId":"job-a"}', [])
     expect(sessionStorage.length).toBe(0)
-  })
-
-  it('records a Feilian answer in the chosen chat without opening another page', async () => {
-    const { knowledge: source, execute, actx } = fixture()
-    const query = vi.spyOn(workbenchProducts, 'queryFeilian').mockResolvedValue({ answer: '已有资料中的答案' })
-    const start = location.href
-    const outcome = await source.matchEnter!({ sessionId: 'session-a' } as never, '@飞链/产品资料 查询售后政策', new AbortController().signal, { attachments: 0 })
-    if (!outcome || typeof outcome !== 'object' || !('claim' in outcome)) throw new Error('Expected a library claim')
-    expect((await outcome.claim.submit('查询售后政策', actx as never, [])).kind).toBe('success')
-    expect(query).toHaveBeenCalledWith('kb-a', '查询售后政策')
-    expect(execute).toHaveBeenLastCalledWith('session-a', expect.stringContaining('已有资料中的答案'), [])
-    expect(location.href).toBe(start)
   })
 })

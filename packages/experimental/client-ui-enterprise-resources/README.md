@@ -36,7 +36,7 @@ The same browser plugin reports each completed Turn's provider-reported token us
 
 -----
 
-The default sidebar shows Files, Knowledge and Agents. Skill administration remains available through the existing resource surfaces. The Knowledge panel includes a deployment-prefix-aware Feilian entry for independent account binding and queries; it does not migrate existing articles or merge the two services.
+The default sidebar shows Files, Knowledge and Agents. Skill administration remains available through the existing resource surfaces. The Knowledge panel manages the internal team knowledge base shipped with this package.
 
 Resource requests and usage reports derive the public deployment prefix from the current tenant mount, so a workbench at `/preview/t/<slug>/harness/` uses `/preview/enterprise/api/` without sending mutations or billing reports to the origin-root deployment.
 
@@ -50,8 +50,6 @@ Agents opens the native marketplace for discovery, categories, search, and unloc
 For the web preview, New project browses only the signed-in team sandbox, supports breadcrumbs and new folders, and passes a verified directory to the existing workspace owner. It does not upload computer folders. Desktop retains its native Windows folder chooser; sharing this new visual treatment with Desktop is deferred. Folder creation remains writer-only. The two directory-flow single slots are intentionally shadowed at priority -100; the usage overlay has its own list-entry id. Errors offer in-place retry.
 
 New copy is supplied in Chinese and English; the other supported locales use English for these additions.
-
-Feilian is the default native Knowledge panel: binding, unbinding, account state, and accessible libraries stay inside the workbench. Selecting a library starts its @ chat interaction. Internal Zhiliu knowledge remains available through the secondary tab. Feilian accounts, plans, storage, and billing remain independent; explicit registration and provisioning links may open their configured external portals. This panel exposes library discovery and retrieval, not the full Feilian document-management interface.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
@@ -91,7 +89,7 @@ The page code calls the same-origin `/enterprise/api/resources/*` routes for lis
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through the existing `skill-filesystem` catalog and `skill` tool, which discover user-authored skills and the generated `team-knowledge` skill; the file and internal knowledge pages add no prompt or tool. Agent and direct Feilian interactions use the existing command lifecycle in the Session log. Inline Feilian references serialize retrieved answers into the normal logged user message before submission; query errors retain the draft. Private agent prompts and skills remain in the server executor, separate from the ordinary Harness model history.
+Indirectly, through the existing `skill-filesystem` catalog and `skill` tool, which discover user-authored skills and the generated `team-knowledge` skill; the file and internal knowledge pages add no prompt or tool. Agent interactions use the existing command lifecycle in the Session log. Private agent prompts and skills remain in the server executor, separate from the ordinary Harness model history.
 
 #### KV Cache effect
 

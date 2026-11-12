@@ -902,19 +902,11 @@ export interface Config {
 ## `@deepseek-ai/dsh-enterprise-console`
 
 - `inject`: `webServer` · `webApp` · `connection`
-- `source`: [`packages/experimental/enterprise-console/src/index.ts:44`](../packages/experimental/enterprise-console/src/index.ts)
+- `source`: [`packages/experimental/enterprise-console/src/index.ts:43`](../packages/experimental/enterprise-console/src/index.ts)
 
 ```ts config-catalog
 /** Enterprise console deployment settings. */
 export interface Config {
-  /** Independent Feilian API origin, reachable from this service. */
-  readonly productFeilianBaseUrl?: string
-  /** Public Feilian registration entry; its account and plan stay independent. */
-  readonly productFeilianRegistrationUrl?: string
-  /** Provisioning portal responsible for checking enterprise eligibility. */
-  readonly productFeilianEnterpriseUrl?: string
-  /** Timeout for Feilian authorization and query requests. */
-  readonly productFeilianTimeoutMs: number
   /** Installed PPT Master Skill directory; omit to keep PPT products unavailable. */
   readonly productPptSkillRoot?: string
   /** Shipped agent catalog file; omit to read the agent-hub bundle beside this package. */

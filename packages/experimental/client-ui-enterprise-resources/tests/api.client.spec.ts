@@ -17,9 +17,9 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('enterprise resources API client', () => {
-  it('opens the bound knowledge page beneath the same preview mount', () => {
+  it('opens the admin page beneath the same preview mount', () => {
     window.history.replaceState(null, '', '/yituobo/t/acme/harness/')
-    expect(enterprisePagePath('/feilian')).toBe('/yituobo/enterprise/feilian')
+    expect(enterprisePagePath('/admin/agents')).toBe('/yituobo/enterprise/admin/agents')
   })
   it('keeps resource mutations inside the current deployment prefix', async () => {
     window.history.replaceState(null, '', '/preview/t/acme/harness/')

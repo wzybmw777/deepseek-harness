@@ -114,11 +114,9 @@ DSH 启动令牌只在 Host 进程内部交换。租户 Cookie 和启动令牌�
 
 `/enterprise/agents` 展示已发布智能体、成员使用权、积分与任务；`/enterprise/admin/agents` 要求 `settings.write`，管理提示词、Skill 说明、模型、执行器、价格、时长、发布、成员消费权限及用量核对。草稿可以先保存再选择模型；发布要求已配置费率且执行器就绪。管理员显式分配每位成员的钱包与权限，加入团队本身不会共享余额或智能体权益。
 
-独立的 `<dataDir>/product.sqlite` 保存整数微积分、购买、授权、任务、完整且去除凭据的模型请求、用量结算及加密飞链绑定。备份时同时保留 `credential.key` 与 `<dataDir>/product-jobs`。购买标识保证幂等扣费；30 天按购买成功后连续 30 个 24 小时计算，并支持自定义时长与永久权益。解锁购买使用权，每次运行仍单独消耗积分。输入／输出费率以模型服务返回的每百万 Token 对应整数积分配置。服务端在请求前预留上下文预算、冻结费率并一次结算实际用量；中断或缺少用量的请求保留预留积分，等待管理员核对。原有 Harness 聊天仍走独立的浏览器上报额度链路。
+独立的 `<dataDir>/product.sqlite` 保存整数微积分、购买、授权、任务、完整且去除凭据的模型请求及用量结算。备份时同时保留 `credential.key` 与 `<dataDir>/product-jobs`。购买标识保证幂等扣费；30 天按购买成功后连续 30 个 24 小时计算，并支持自定义时长与永久权益。解锁购买使用权，每次运行仍单独消耗积分。输入／输出费率以模型服务返回的每百万 Token 对应整数积分配置。服务端在请求前预留上下文预算、冻结费率并一次结算实际用量；中断或缺少用量的请求保留预留积分，等待管理员核对。原有 Harness 聊天仍走独立的浏览器上报额度链路。
 
 `productPptSkillRoot`／`DSH_PRODUCT_PPT_SKILL_ROOT` 指向经核验的 PPT Master 安装，`productPython`／`DSH_PRODUCT_PYTHON` 指向配套 Python 环境。模型与导出超时默认 240000／180000 毫秒，输出上限 12000 Token，并发为 2（`productModelTimeoutMs`、`productExportTimeoutMs`、`productMaxOutputTokens`、`productConcurrency`；对应 `DSH_PRODUCT_*` 变量见 overlay）。用户明确选择基于所给材料快速制作 3–6 页 SVG，再导出原生可编辑 PPTX；此流程没有外部研究、图片或备注。PPT Master 执行最终质量与导出检查，下载校验任务所有者。支持文本执行，视频执行器尚待接入；初始数据未设置商业售价或用量费率。
-
-`/enterprise/feilian` 一次验证用户的飞链密码，换取加密保存的受限插件密钥；密码与高权限成员令牌均不保存。通过飞链现有 API 获取实时知识库权限并检索指定知识库，解绑先撤销密钥。`productFeilianBaseUrl`／`DSH_PRODUCT_FEILIAN_BASE_URL` 指向独立 API；可选 `productFeilianRegistrationUrl`、`productFeilianEnterpriseUrl` 展示公开入口，`productFeilianTimeoutMs` 默认 120000 毫秒，对应环境变量见 overlay。两侧数据库、密码、套餐和计费独立。企业自动开通、在线支付、个人分层套餐及普通聊天强制积分计费仍待后续实施。
 
 <a id="model-experience"></a>
 ## 模型体验

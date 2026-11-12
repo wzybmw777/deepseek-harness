@@ -34,13 +34,4 @@ export const productCopy = {
   pptExecutor: 'PPT Master · 可编辑 PPT', textExecutor: '文本创作', videoExecutor: '视频成片 · 待接入', close: '关闭',
   purchaseRetry: '解锁结果待确认。请刷新检查；重试会沿用同一交易标识。',
   light: '浅色', dark: '深色',
-  feilian: '飞链知识库', feilianIntro: '绑定已有飞链账号，使用你有权限访问的知识。绑定保存在服务端，换设备仍可使用。',
-  feilianSeparate: '织流与飞链各自管理账号、套餐和费用。密码仅在绑定时校验，不会保存在织流。',
-  feilianStates: { unavailable: '服务待配置', unbound: '尚未绑定', connected: '已连接', reauth: '授权需更新', offline: '服务暂时离线' },
-  feilianRegister: '注册飞链账号', feilianEnterprise: '开通飞链企业版', feilianEmail: '飞链邮箱', feilianPassword: '飞链密码',
-  feilianWorkspace: '飞链工作空间（选填）', feilianWorkspaceHint: '同一邮箱有多个工作空间时填写工作空间标识。',
-  bind: '绑定账号', unbind: '解除绑定', boundAccount: '已绑定账号', feilianChoose: '选择知识库',
-  feilianQuestion: '想了解什么', feilianAsk: '询问知识库', feilianBilling: '本次检索按飞链自己的套餐与用量规则计费。',
-  feilianEmpty: '当前授权下还没有可用知识库，请在飞链检查内容与成员权限。', feilianAnswer: '知识库回答',
-  feilianUnbindConfirm: '解除后，织流会撤销这把插件凭据。飞链账号和知识内容仍然保留。',
 } as const

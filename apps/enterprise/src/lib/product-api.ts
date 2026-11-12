@@ -31,11 +31,6 @@ export interface Member { id: string; name: string; teamId: string; teamName: st
 /** One team's paid-plan capability and current unlock count. */
 export interface TeamAccess extends PlanAccess { id: string; name: string }
 export interface ProductAdmin { agents: ManagedAgent[]; models: Array<{ id: string; name: string }>; members: Member[]; teams: TeamAccess[] }
-export interface FeilianStatus {
-  available: boolean; bound: boolean; account?: string; state: 'unavailable' | 'unbound' | 'connected' | 'reauth' | 'offline';
-  knowledgeBases: Array<{ id: string; name: string }>; registrationUrl?: string; enterpriseUrl?: string
-}
-
 /** Market operations; request keys survive uncertain client outcomes. */
 export const productApi = {
   market: () => request<Market>('/product/market'),
@@ -45,8 +40,4 @@ export const productApi = {
   purchase: (agentId: string, key: string) => request('/product/purchase', { method: 'POST', body: { agentId, key } }),
   run: (agentId: string, input: string, key: string) => request<Job>('/product/jobs', { method: 'POST', body: { agentId, input, key } }),
   download: (jobId: string) => publicPath(`/enterprise/api/product/jobs/${encodeURIComponent(jobId)}/download`),
-  feilian: () => request<FeilianStatus>('/product/feilian'),
-  bindFeilian: (email: string, password: string, tenantSlug: string) => request('/product/feilian/bind', { method: 'POST', body: { email, password, tenantSlug } }),
-  unbindFeilian: () => request('/product/feilian/unbind', { method: 'POST', body: {} }),
-  queryFeilian: (knowledgeBaseId: string, question: string) => request<{ answer: string }>('/product/feilian/query', { method: 'POST', body: { knowledgeBaseId, question } }),
 }

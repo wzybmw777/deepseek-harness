@@ -4,10 +4,6 @@
     - id: enterprise-console
       name: './lib/index.js'
       config:
-        productFeilianBaseUrl: !!js process.env.DSH_PRODUCT_FEILIAN_BASE_URL
-        productFeilianRegistrationUrl: !!js process.env.DSH_PRODUCT_FEILIAN_REGISTRATION_URL
-        productFeilianEnterpriseUrl: !!js process.env.DSH_PRODUCT_FEILIAN_ENTERPRISE_URL
-        productFeilianTimeoutMs: !!js Number(process.env.DSH_PRODUCT_FEILIAN_TIMEOUT_MS ?? 120000)
         productPptSkillRoot: !!js process.env.DSH_PRODUCT_PPT_SKILL_ROOT
         productAgentCatalog: !!js process.env.DSH_PRODUCT_AGENT_CATALOG
         productPython: !!js process.env.DSH_PRODUCT_PYTHON ?? 'python3'

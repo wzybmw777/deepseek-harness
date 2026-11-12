@@ -131,10 +131,6 @@ export class ProductStore {
         reserved INTEGER NOT NULL, input_rate INTEGER NOT NULL, output_rate INTEGER NOT NULL,
         state TEXT NOT NULL, request TEXT NOT NULL, response TEXT, input_tokens INTEGER, output_tokens INTEGER
       ) STRICT;
-      CREATE TABLE IF NOT EXISTS bindings (
-        team_id TEXT NOT NULL, user_id TEXT NOT NULL, account TEXT NOT NULL, encrypted_key TEXT NOT NULL,
-        updated_at TEXT NOT NULL, PRIMARY KEY(team_id,user_id)
-      ) STRICT;
       CREATE TABLE IF NOT EXISTS catalog_seed (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
     `)
     if (version === 1) {
@@ -439,25 +435,4 @@ export class ProductStore {
     })
   }
 
-  /** Read a member's encrypted external binding. @param teamId - team. @param userId - member. @returns private binding or null. */
-  binding(teamId: string, userId: string): { account: string; encryptedKey: string; updatedAt: string } | null {
-    const row = this.db.prepare('SELECT * FROM bindings WHERE team_id=? AND user_id=?').get(teamId, userId)
-    return row ? { account: str(row, 'account'), encryptedKey: str(row, 'encrypted_key'), updatedAt: str(row, 'updated_at') } : null
-  }
-
-  /**
-   * Save only a restricted plugin credential, never the account password.
-   * @param teamId - team.
-   * @param userId - member.
-   * @param account - display email.
-   * @param encryptedKey - encrypted scoped credential.
-   */
-  bind(teamId: string, userId: string, account: string, encryptedKey: string): void {
-    this.db.prepare(`INSERT INTO bindings VALUES(?,?,?,?,?) ON CONFLICT(team_id,user_id)
-      DO UPDATE SET account=excluded.account,encrypted_key=excluded.encrypted_key,updated_at=excluded.updated_at`)
-      .run(teamId, userId, account, encryptedKey, new Date().toISOString())
-  }
-
-  /** Remove a revoked or expired binding. @param teamId - team. @param userId - member. */
-  unbind(teamId: string, userId: string): void { this.db.prepare('DELETE FROM bindings WHERE team_id=? AND user_id=?').run(teamId, userId) }
 }

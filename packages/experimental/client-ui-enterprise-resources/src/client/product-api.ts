@@ -82,17 +82,6 @@ export interface ProductIdentity {
   readonly permissions: string[]
 }
 
-/** Restricted Feilian binding and the libraries currently accessible to the member. */
-export interface FeilianStatus {
-  readonly available: boolean
-  readonly bound: boolean
-  readonly account?: string
-  readonly state: 'unavailable' | 'unbound' | 'connected' | 'reauth' | 'offline'
-  readonly knowledgeBases: readonly { readonly id: string; readonly name: string }[]
-  readonly registrationUrl?: string
-  readonly enterpriseUrl?: string
-}
-
 /** Account-scoped requests used by native workbench components. */
 export const workbenchProducts = {
   market: (): Promise<MarketSnapshot> => request('/product/market', { query: { view: 'catalog' } }),
@@ -102,10 +91,6 @@ export const workbenchProducts = {
   purchase: (agentId: string, key: string): Promise<unknown> => request('/product/purchase', { method: 'POST', body: { agentId, key } }),
   run: (agentId: string, input: string, key: string): Promise<MarketJob> => request('/product/jobs', { method: 'POST', body: { agentId, input, key } }),
   job: (jobId: string): Promise<MarketJob> => request(`/product/jobs/${encodeURIComponent(jobId)}`),
-  feilian: (): Promise<FeilianStatus> => request('/product/feilian'),
-  bindFeilian: (email: string, password: string, tenantSlug: string): Promise<unknown> => request('/product/feilian/bind', { method: 'POST', body: { email, password, tenantSlug } }),
-  unbindFeilian: (): Promise<unknown> => request('/product/feilian/unbind', { method: 'POST' }),
-  queryFeilian: (knowledgeBaseId: string, question: string): Promise<{ answer: string }> => request('/product/feilian/query', { method: 'POST', body: { knowledgeBaseId, question } }),
   download: (jobId: string): string => enterpriseApiPath(`/product/jobs/${encodeURIComponent(jobId)}/download`),
 }
 
