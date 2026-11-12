@@ -190,6 +190,9 @@ export class ProductRuntime implements ProductRunner {
       responseBody = await boundedResponse(response)
       const usage = parseProviderUsage(channel.wireProtocol, responseBody)
       this.products.settle(attempt, responseBody, usage ?? null); settled = true
+      if (response.status === 401 || response.status === 403) {
+        throw new HttpError(502, '模型渠道认证失败，请管理员检查渠道与 API Key', 'provider_auth')
+      }
       if (!response.ok) throw new HttpError(502, '模型服务暂时繁忙，请稍后重新提交。', 'provider_failed')
     } catch (error) {
       if (!settled) this.products.settle(attempt, responseBody || 'Request interrupted before complete provider response', null)

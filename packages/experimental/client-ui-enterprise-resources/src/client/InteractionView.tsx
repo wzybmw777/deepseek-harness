@@ -1,8 +1,8 @@
 /** Public agent results stay in the normal persisted conversation history. */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import { describeError, FormError, LoadingState } from './common.tsx'
 import { workbenchProducts, type MarketJob } from './product-api.ts'
 import { NS } from './locales.ts'
@@ -29,6 +29,14 @@ export function InteractionView({ node, t }: InteractionProps): ReactNode {
   const record = decode(node.args)
   const jobId = record?.kind === 'agent' ? record.jobId : undefined
   const accepted = node.outcome?.kind === 'success'
+  const labels = useMemo<MarkdownLabels>(() => ({
+    code: {
+      copyLabel: t('markdown.copy'),
+      copiedLabel: t('markdown.copied'),
+      toolbarLabels: { codeLabel: t('markdown.code'), wrapLabel: t('markdown.wrap'), unwrapLabel: t('markdown.unwrap') },
+    },
+    footnotes: t('markdown.footnotes'),
+  }), [t])
   const [job, setJob] = useState<MarketJob | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
@@ -56,9 +64,9 @@ export function InteractionView({ node, t }: InteractionProps): ReactNode {
   const title = record.kind === 'knowledge' ? record.title : job?.title ?? t('mention.agents')
   return <article className={css.interaction} data-enterprise-interaction={record.kind}>
     <header><h2>@{title}</h2>{job ? <span role="status" className={css.status} data-state={job.state}>{t(`market.${job.state}`)}</span> : null}</header>
-    {record.kind === 'knowledge' ? <><p className={css.interactionInput}>{record.input}</p><div className={css.interactionAnswer}>{record.answer}</div></>
+    {record.kind === 'knowledge' ? <><p className={css.interactionInput}>{record.input}</p><div className={css.interactionMarkdown}><MarkdownText text={record.answer} labels={labels} /></div></>
       : job ? <><p className={css.interactionInput}>{job.input}</p>
-        {job.result ? <div className={css.interactionAnswer}>{job.result}</div> : null}
+        {job.result ? <div className={css.interactionMarkdown}><MarkdownText text={job.result} labels={labels} /></div> : null}
         {job.error ? <FormError message={job.error} /> : null}
         <footer>{job.state === 'completed' && job.artifact ? <a className={css.download} href={workbenchProducts.download(job.id)}>{t('market.download')}</a> : null}</footer>
       </> : !error ? <LoadingState label={t('common.loading')} /> : null}

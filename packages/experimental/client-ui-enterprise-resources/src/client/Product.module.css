@@ -142,6 +142,7 @@
 .interaction h2 { margin: 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
 .interactionInput { margin: 16px 0; padding: 12px 16px; border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-interactive-bg-hover); font-size: 13px; line-height: 22px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .interactionAnswer { padding: 4px 0 16px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.8; }
+.interactionMarkdown { padding: 4px 0 16px; overflow-wrap: anywhere; font-size: 14px; line-height: 1.8; }
 .interaction footer { justify-content: space-between; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
 .interactionError { display: flex; align-items: center; gap: 12px; }
 .knowledgeSwitch button:focus-visible, .libraries > button:focus-visible, .binding a:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color); outline-offset: 2px; }
