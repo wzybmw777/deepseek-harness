@@ -16,6 +16,7 @@ This Electron entry loads `https://dev.echoai.best/enterprise` directly, reusing
 - `preload.cjs` synchronizes the page theme with Electron's native title bar. The main process accepts only valid theme values from the top-level page in the current enterprise cloud window.
 - Console startup displays “正在加载企业控制台…” instead of the old mark or workspace redirect message. Startup and data-loading indicators follow the console's light and dark colors. Rotation stops when reduced motion is requested. The page's actual request state controls when loading indicators appear and disappear. Outside the workspace the window bar follows the page's own theme, so a console theme change also repaints the native title bar.
 - The enterprise console, workspace sidebar, and empty conversation hero share the Zhiliu brand mark. The console sidebar embedded in the desktop keeps only its name, and the default “织流企业 AI 工作台” becomes “企业 AI 工作台”. The name is truncated when the sidebar collapses.
+- Closing the window or pressing Alt+F4 asks for confirmation. Choosing “取消” keeps the window open; a restart that installs a downloaded update skips the prompt.
 - In-app navigation is restricted to the enterprise cloud origin. External links open in the system browser.
 - Login state persists in a separate Electron session.
 - The original local Harness entry remains available as `Launch-Harness.ps1`.

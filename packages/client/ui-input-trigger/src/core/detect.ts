@@ -9,6 +9,21 @@ import type { DetectTrigger } from './contract.ts'
 
 const WORD_CHAR = /[\p{L}\p{N}_]/u
 const WHITESPACE = /\s/u
+/** The composer's detect projection of one atomic chip (see `projection.ts`). */
+const ATOMIC_CHIP = '\uFFFC'
+
+/**
+ * Leading-position rule: only whitespace and atomic reference chips may
+ * precede the trigger. A chip reads as no text, so a command or agent token
+ * after one still opens the leading menu and can take the leading seat.
+ */
+function leadingAt(draft: string, index: number): boolean {
+  for (let i = 0; i < index; i++) {
+    const ch = draft.charAt(i)
+    if (ch !== ATOMIC_CHIP && !WHITESPACE.test(ch)) return false
+  }
+  return true
+}
 
 /**
  * Word-boundary rule: a trigger char opens only at start-of-draft, after
@@ -54,7 +69,7 @@ export const detectTrigger: DetectTrigger = (draft, caret, guard) => {
       trigger: '@',
       query: at.query,
       quoted: at.quoted,
-      position: draft.search(/\S/) === start ? 'leading' : 'inline',
+      position: leadingAt(draft, start) ? 'leading' : 'inline',
       span: { start, end: caret, draftRev: 0 },
     }
   }
@@ -68,7 +83,7 @@ export const detectTrigger: DetectTrigger = (draft, caret, guard) => {
       trigger: ch,
       query: draft.slice(i + 1, caret),
       quoted: false,
-      position: draft.search(/\S/) === i ? 'leading' : 'inline',
+      position: leadingAt(draft, i) ? 'leading' : 'inline',
       span: { start: i, end: caret, draftRev: 0 },
     }
   }

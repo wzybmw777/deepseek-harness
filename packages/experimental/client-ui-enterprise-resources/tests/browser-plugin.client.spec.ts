@@ -66,6 +66,8 @@ async function bench() {
     requestDraftInitialization: initializeDraft,
     for: () => ({ state: { getSnapshot: () => ({ occurrences: [] }) } }),
   } } as never)
+  const registerUserText = vi.fn()
+  runtime.ctx.provide('uiConversation', { userText: { register: registerUserText } } as never)
   const startSession = vi.fn()
   runtime.ctx.provide('uiWorkspace', { startSession } as never)
   const workspace = await runtime.workspaces.create({ path: '/market-project' })
@@ -87,7 +89,7 @@ describe('enterprise resources browser half', () => {
 
   it('declares the workbench and native composer services it binds', () => {
     expect(inject).toEqual([
-      'slots', 'locale', 'layout', 'sessions', 'conversation', 'inputTriggers', 'uiWorkspace', 'workspaces', 'remote', 'remote.commands',
+      'slots', 'locale', 'layout', 'sessions', 'conversation', 'uiConversation', 'inputTriggers', 'uiWorkspace', 'workspaces', 'remote', 'remote.commands',
     ])
   })
 

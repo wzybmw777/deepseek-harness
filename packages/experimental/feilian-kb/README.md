@@ -59,6 +59,7 @@ Two tool schemas become visible after sign-in and stay fixed for the session. Re
 Prefix-stable while the visible tool set and schemas are unchanged. Signing in or out changes tool availability and may invalidate reuse from the first changed schema token.
 
 
+<a id="known-limitations-and-deferred-work"></a>
 ## Known Limitations and Deferred Work
 
 - The vendor copy carries one upstream revision. Re-vendoring a newer `dsh-feilian-kb` means repeating the four local modifications above.

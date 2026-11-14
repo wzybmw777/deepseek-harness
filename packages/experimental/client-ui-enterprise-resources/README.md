@@ -43,9 +43,11 @@ Resource requests and usage reports derive the public deployment prefix from the
 <a id="workbench-market-usage-and-project-folders"></a>
 ## Workbench market, usage, and project folders
 
-Marketplace choices create a fresh conversation in the first registered project, initializing the default project when eligible. They preserve other conversations' drafts; the project can be changed before submission.
+Marketplace choices create a fresh conversation in the first registered project, initializing the default project when eligible. They preserve other conversations' drafts; the project can be changed before submission. The chosen agent's name becomes that conversation's title, keeping an otherwise untitled chat recognizable in the project list.
 
-Agents opens the native marketplace for discovery, categories, search, and unlock confirmation. Using an unlocked agent selects it through the existing chat @ interaction. Its durable command reference restores execution status, output, and owner-checked downloads in conversation history; there is no separate work gallery. The authenticated product API still enforces access, expiration, usage reservation, and settlement. The current agent executor accepts text materials; attachments remain in ordinary chat. The quota trigger opens a small plan-progress and available-points popover; authorized users explicitly open administration in another tab for details. The existing plan meter and the new product wallet remain separate.
+Agents opens the native marketplace for discovery, categories, search, and unlock confirmation. Using an unlocked agent selects it through the existing chat @ interaction. A knowledge-base chip may already precede the agent token; the pick keeps that chip in the task material. Its durable command reference restores execution status, output, and owner-checked downloads in conversation history; there is no separate work gallery. The authenticated product API still enforces access, expiration, usage reservation, and settlement. The current agent executor accepts text materials; attachments remain in ordinary chat. The quota trigger opens a small plan-progress and available-points popover; authorized users explicitly open administration in another tab for details. The existing plan meter and the new product wallet remain separate.
+
+The chat @ menu adds a Feilian knowledge base group that lists the bases the tenant can read after signing in from the sidebar page. A pick inserts a knowledge-base reference; on submit it serializes into a `@name [飞链知识库 id=…]` line that the message view renders back as a chip, so the model answers with the Feilian plugin's own `feilian_kb_search` and `feilian_kb_page` tools against that base. Before sign-in the group offers only Sign in to Feilian knowledge, which opens the sidebar page.
 
 For the web preview, New project browses only the signed-in team sandbox, supports breadcrumbs and new folders, and passes a verified directory to the existing workspace owner. It does not upload computer folders. Desktop retains its native Windows folder chooser; sharing this new visual treatment with Desktop is deferred. Folder creation remains writer-only. The two directory-flow single slots are intentionally shadowed at priority -100; the usage overlay has its own list-entry id. Errors offer in-place retry.
 
@@ -70,6 +72,7 @@ The page code calls the same-origin `/enterprise/api/resources/*` routes for lis
 | [`src/client/common.tsx`](src/client/common.tsx) | Shared page shell, dialogs, notices, and error presentation |
 | [`src/client/api.ts`](src/client/api.ts) | Same-origin resource API client and response failures |
 | [`src/client/usage-reporter.ts`](src/client/usage-reporter.ts) | Completed-Turn token reporting |
+| [`src/client/feilian-mentions.ts`](src/client/feilian-mentions.ts) | `@` group that scopes a question to one Feilian knowledge base |
 | [`tests/`](tests/) | Panel registration, navigation bridge, API, and page-flow tests |
 
 </details>

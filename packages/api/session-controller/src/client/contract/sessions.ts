@@ -142,6 +142,13 @@ export interface ISessions {
     allowMigration?: boolean
   }): Promise<SessionId>
   /**
+   * Permanently delete a Session and its stored messages without opening its
+   * history. The Host refuses while any of the Session's work still runs.
+   * @param sessionId - Session to delete.
+   * @throws SessionDeleteError carrying the Host failure code (`session/active`, `session/agent-busy`, ...).
+   */
+  delete(sessionId: SessionId): Promise<void>
+  /**
    * Borrow an already-retained Agent-scoped Context without extending its lifetime.
    * @param id - session id.
    * @returns the live scoped Context, or undefined without a retained generation.

@@ -102,6 +102,26 @@ describe('plan-based agent access', () => {
     expect(() => store.job('other', 'alice', job.id)).toThrow('不存在')
   })
 
+  it('records progress stages and settles them with the task', async () => {
+    const { store, agent } = await fixture()
+    store.purchase('team', 'alice', agent.id, 'buy')
+    const { job } = store.createJob('team', 'alice', agent.id, 'Material', 'job')
+    store.updateJob(job.id, 'running')
+    store.appendStep(job.id, 'prepare')
+    store.appendStep(job.id, 'think')
+    store.appendStep(job.id, 'search', '这个公司怎么经营')
+    store.appendStep(job.id, 'search', '这个公司怎么经营')
+    expect(store.job('team', 'alice', job.id).steps).toMatchObject([
+      { kind: 'prepare', state: 'done' },
+      { kind: 'think', state: 'done' },
+      { kind: 'search', detail: '这个公司怎么经营', state: 'running' },
+    ])
+    store.updateJob(job.id, 'completed', 'answer')
+    const finished = store.job('team', 'alice', job.id)
+    expect(finished.state).toBe('completed')
+    expect(finished.steps.every(step => step.state === 'done')).toBe(true)
+  })
+
   it('keeps the unlock and marks an interrupted task across restart', async () => {
     const fixture_ = await fixture()
     fixture_.store.purchase('team', 'alice', fixture_.agent.id, 'buy')
@@ -111,6 +131,8 @@ describe('plan-based agent access', () => {
     expect(fixture_.store.agent(fixture_.agent.id).published).toBe(true)
     await fixture_.restart()
     expect(fixture_.store.entitlement('team', 'alice', fixture_.agent.id)?.active).toBe(true)
-    expect(fixture_.store.job('team', 'alice', job.id)).toMatchObject({ state: 'interrupted', error: expect.stringContaining('中断') })
+    const restored = fixture_.store.job('team', 'alice', job.id)
+    expect(restored.state).toBe('interrupted')
+    expect(restored.error).toContain('中断')
   })
 })

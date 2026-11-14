@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for deploying-the-hosted-builds.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/cookbook/deploying-the-hosted-builds.md
+/:
+  en: 7cd22685579089c8
+  zh: 82d3bdf2b1eb5c6d
+/cookbook-deploy-the-hosted-builds:
+  en: 89efe94de9b91d39
+  zh: 62a9bf8f2e03b919
+/cookbook-deploy-the-hosted-builds/summary:
+  en: 55c6e9e6104ff127
+  zh: cb884eb2175e5a4a
+/cookbook-deploy-the-hosted-builds/table-of-contents:
+  en: 3ae42729a39c4221
+  zh: cbf5383bb8b790d3
+/cookbook-deploy-the-hosted-builds/1-map-the-deployment:
+  en: ba15bd912ccf5e47
+  zh: 16756e75ce9fd382
+/cookbook-deploy-the-hosted-builds/2-rebuild-in-dependency-order:
+  en: 4782ca2dce1ec149
+  zh: a7068e87d3591c61
+/cookbook-deploy-the-hosted-builds/3-restart-and-wait-for-tenant-boot:
+  en: f51ffe43c976cb8a
+  zh: 99a68efc2117f4e3
+/cookbook-deploy-the-hosted-builds/4-package-and-publish-the-desktop-build:
+  en: d79f621788c3fd89
+  zh: 6368582d9b6a6dbf
+/cookbook-deploy-the-hosted-builds/5-verify-the-deployment:
+  en: ca4d51c9fc7b8cf9
+  zh: ee49a7a5ef0c039c
+/cookbook-deploy-the-hosted-builds/6-startup-cost-and-the-enter-experience:
+  en: e95592635332fb19
+  zh: fb1152328f084330
+/cookbook-deploy-the-hosted-builds/troubleshooting:
+  en: 1f61dc5448152e98
+  zh: 8c3dc595a902af1a
+/cookbook-deploy-the-hosted-builds/further-exploration:
+  en: 81de4e6658cf01e4
+  zh: 75923288497b6855
+/cookbook-deploy-the-hosted-builds/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

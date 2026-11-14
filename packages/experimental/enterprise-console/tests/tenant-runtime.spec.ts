@@ -133,6 +133,7 @@ describe('tenant container launch contract', () => {
     expect(args).toContain('--tmpfs=/tmp:rw,nosuid,nodev,size=256m,mode=1777')
     expect(args).toContain('--network=slirp4netns:allow_host_loopback=false')
     expect(args).toContain('--publish=127.0.0.1:41000:41000')
+    expect(args).toContain('--env=NODE_COMPILE_CACHE=/var/lib/dsh-enterprise-tenants/team-a/home/.node-compile-cache')
     expect(args).not.toContain('--privileged')
     expect(args.join('\n')).not.toContain('docker.sock')
     expect(args).toContain('--mount=type=bind,src=/var/lib/dsh-enterprise/.enterprise-data/plugins,dst=/var/lib/dsh-enterprise/.enterprise-data/plugins,ro')

@@ -14,7 +14,7 @@ export interface TriggerHit {
   readonly query: string
   /** True only for an open quoted `@file` token. */
   readonly quoted: boolean
-  /** leading = draft trimmed (whitespace incl. newlines) starts with the token. */
+  /** leading = only whitespace and atomic reference chips precede the token. */
   readonly position: TriggerPosition
   /** Token span; draftRev injected by the caller. */
   readonly span: TokenSpan

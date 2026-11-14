@@ -5,7 +5,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { $getRoot, $nodesOfType, REDO_COMMAND, UNDO_COMMAND } from 'lexical'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import type { DraftReference, DraftSnapshot, Occurrence } from '../src/client/contract/draft-editor.ts'
+import type { DraftReference, DraftSnapshot, Occurrence, ReferenceInsert } from '../src/client/contract/draft-editor.ts'
 import type {
   CommandClaim, DraftAttachmentId, InputTriggerController, PickOutcome, SubmitOutcome,
 } from '../src/client/contract/input.ts'
@@ -854,5 +854,48 @@ describe('plain-text reference catalogs', () => {
     expect(slices('@person @"" @"a/b')).toEqual([])
     expect(slices('@"open @')).toEqual([])
     expect(slices('drill @"open dir/。')).toEqual(['@"open dir/'])
+  })
+})
+
+describe('claims after references', () => {
+  const agentClaim = (): CommandClaim => ({ name: 'agent', token: '@文案助手 ', submit: () => Promise.resolve({ kind: 'success' }) })
+  const knowledgeBase = {
+    source: 'feilian-knowledge', ref: 'feilian-kb:kb-1', label: '杭州异拓波', clipboardText: '@杭州异拓波',
+  } satisfies ReferenceInsert
+
+  it('takes the leading seat ahead of a reference chip and keeps the chip in the arguments', () => {
+    const shell = makeShell()
+    shell.setDraft('@杭州异拓波 @文案助手 ')
+    expect(shell.insertReference(knowledgeBase, { start: 0, end: 6, draftRev: shell.snapshot.draftRev })).toBe(true)
+    // Detect coordinates: one chip character, a space, then the agent token.
+    expect(shell.beginCommand(agentClaim(), { start: 2, end: 8, draftRev: shell.snapshot.draftRev })).toBe(true)
+    expect(shell.snapshot.phase).toBe('claimed')
+    expect(shell.snapshot.draft).toBe('@文案助手 @杭州异拓波 ')
+    expect(chips(shell).map(chip => chip.label)).toEqual(['杭州异拓波'])
+    expect(commandChips(shell)).toBe(1)
+  })
+
+  it('refuses a claim when typed text precedes the token', () => {
+    const shell = makeShell()
+    shell.setDraft('材料 @文案助手 ')
+    expect(shell.beginCommand(agentClaim(), { start: 3, end: 9, draftRev: shell.snapshot.draftRev })).toBe(false)
+    expect(shell.snapshot.phase).toBe('plain')
+  })
+
+  it('serializes reference chips in the arguments when the claim asks for it', async () => {
+    const serializeReference = vi.fn((_source: string, ref: string) => Promise.resolve(`[${ref}]`))
+    const provider = { ...triggerProvider(createSnapshotStore(new Map())), serializeReference }
+    const submitted: string[] = []
+    const shell = makeShell({ inputTriggers: () => provider })
+    const claim: CommandClaim = {
+      name: 'agent', token: '@文案助手 ', serializeArgs: true,
+      submit: (args) => { submitted.push(args); return Promise.resolve({ kind: 'success' }) },
+    }
+    shell.setDraft('@杭州异拓波 @文案助手 材料')
+    expect(shell.insertReference(knowledgeBase, { start: 0, end: 6, draftRev: shell.snapshot.draftRev })).toBe(true)
+    expect(shell.beginCommand(claim, { start: 2, end: 8, draftRev: shell.snapshot.draftRev })).toBe(true)
+    shell.submit()
+    await vi.waitFor(() => { expect(submitted).toEqual(['[feilian-kb:kb-1] 材料']) })
+    expect(serializeReference).toHaveBeenCalledWith('feilian-knowledge', 'feilian-kb:kb-1', expect.any(AbortSignal))
   })
 })

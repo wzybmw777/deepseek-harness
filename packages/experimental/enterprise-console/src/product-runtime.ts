@@ -6,12 +6,14 @@ import { mkdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ServerResponse } from 'node:http'
 import { parseProviderUsage } from './desktop-gateway.ts'
+import { FEILIAN_TOOL_GUIDE, FEILIAN_TOOLS, executeFeilianTool, readFeilianSession } from './feilian-tools.ts'
+import { runTextWithTools } from './product-tool-loop.ts'
 import { HttpError, SECURITY_HEADERS } from './http.ts'
 import { decryptCredential } from './security.ts'
 import type { EnterpriseStore } from './store.ts'
 import type { ProductRunner } from './product-api.ts'
 import type { ProductStore } from './product-store.ts'
-import type { AgentProduct } from './product-types.ts'
+import type { AgentJobStepKind, AgentProduct } from './product-types.ts'
 import type { ChannelRecord } from './types.ts'
 
 /** Deployment-owned execution limits and installed PPT Master paths. */
@@ -24,9 +26,25 @@ export interface ProductRuntimeConfig {
   readonly exportTimeoutMs: number
   readonly maxOutputTokens: number
   readonly concurrency: number
+  /** Private directory holding one Harness home per team. */
+  readonly tenantRoot: string
 }
 
 function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) }
+
+/** Map one model tool call to a display-neutral progress stage. */
+function toolStep(name: string, input: Readonly<Record<string, unknown>>): { kind: AgentJobStepKind; detail?: string } {
+  const field = (key: string): string => typeof input[key] === 'string' ? input[key].trim().slice(0, 80) : ''
+  if (name === 'feilian_kb_search') {
+    const question = field('question')
+    return question === '' ? { kind: 'search' } : { kind: 'search', detail: question }
+  }
+  if (name === 'feilian_kb_page') {
+    const path = field('path')
+    return path === '' ? { kind: 'read' } : { kind: 'read', detail: path }
+  }
+  return { kind: 'tool', detail: name.slice(0, 80) }
+}
 
 function modelText(payload: unknown, channel: ChannelRecord): string {
   if (!record(payload)) throw new HttpError(502, '智能体返回内容格式异常，请重新提交', 'model_response_invalid')
@@ -79,7 +97,7 @@ async function python(config: ProductRuntimeConfig, arguments_: readonly string[
     const kill = (): void => {
       if (!child.pid) return
       try { if (process.platform === 'win32') child.kill('SIGKILL'); else process.kill(-child.pid, 'SIGKILL') }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') reject(error) }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') reject(error instanceof Error ? error : new Error(String(error))) }
     }
     const timer = setTimeout(kill, config.exportTimeoutMs)
     signal.addEventListener('abort', kill, { once: true })
@@ -170,36 +188,67 @@ export class ProductRuntime implements ProductRunner {
       : job.input
     const maxTokens = Math.min(this.config.maxOutputTokens, Math.floor(model.contextWindow / 4))
     if (maxTokens < 1) throw new HttpError(409, '请管理员检查模型上下文配置', 'model_context_invalid')
-    const messages = [{ role: 'system', content: system }, { role: 'user', content: userInput }]
-    const body = channel.wireProtocol === 'openai-chat' ? { model: model.name, messages, stream: false, max_tokens: maxTokens }
-      : channel.wireProtocol === 'openai-responses' ? { model: model.name, input: messages, stream: false, max_output_tokens: maxTokens }
-        : { model: model.name, system, messages: [{ role: 'user', content: userInput }], max_tokens: maxTokens, stream: false }
-    const serialized = JSON.stringify(body)
-    if (Buffer.byteLength(serialized) > 16 * 1024 * 1024) throw new HttpError(400, '材料和技能说明超出处理上限，请精简内容', 'context_too_large')
-    const attempt = this.products.reserve(jobId, teamId, userId, model.contextWindow,
-      JSON.stringify({ modelId: model.id, channelId: channel.id, protocol: channel.wireProtocol, body }))
-    this.products.updateJob(jobId, 'running')
-    let responseBody = '', settled = false
-    try {
-      const response = await fetch(target, {
-        method: 'POST', redirect: 'error',
-        signal: AbortSignal.any([this.stop.signal, AbortSignal.timeout(this.config.modelTimeoutMs)]),
-        headers: { 'content-type': 'application/json', ...(channel.wireProtocol === 'anthropic-messages' ? { 'x-api-key': credential, 'anthropic-version': '2023-06-01' } : { authorization: `Bearer ${credential}` }) },
-        body: serialized,
-      })
-      responseBody = await boundedResponse(response)
-      const usage = parseProviderUsage(channel.wireProtocol, responseBody)
-      this.products.settle(attempt, responseBody, usage ?? null); settled = true
-      if (response.status === 401 || response.status === 403) {
-        throw new HttpError(502, '模型渠道认证失败，请管理员检查渠道与 API Key', 'provider_auth')
-      }
-      if (!response.ok) throw new HttpError(502, '模型服务暂时繁忙，请稍后重新提交。', 'provider_failed')
-    } catch (error) {
-      if (!settled) this.products.settle(attempt, responseBody || 'Request interrupted before complete provider response', null)
-      throw error
+    const headers = {
+      'content-type': 'application/json',
+      ...(channel.wireProtocol === 'anthropic-messages'
+        ? { 'x-api-key': credential, 'anthropic-version': '2023-06-01' }
+        : { authorization: `Bearer ${credential}` }),
     }
-    const text = modelText(JSON.parse(responseBody), channel)
-    if (product.executor === 'text') { this.products.updateJob(jobId, 'completed', text); return }
+    const send = async (body: Record<string, unknown>): Promise<unknown> => {
+      const serialized = JSON.stringify(body)
+      if (Buffer.byteLength(serialized) > 16 * 1024 * 1024) throw new HttpError(400, '材料和技能说明超出处理上限，请精简内容', 'context_too_large')
+      const attempt = this.products.reserve(jobId, teamId, userId, model.contextWindow,
+        JSON.stringify({ modelId: model.id, channelId: channel.id, protocol: channel.wireProtocol, body }))
+      let responseBody = '', settled = false
+      try {
+        const response = await fetch(target, {
+          method: 'POST', redirect: 'error',
+          signal: AbortSignal.any([this.stop.signal, AbortSignal.timeout(this.config.modelTimeoutMs)]),
+          headers,
+          body: serialized,
+        })
+        responseBody = await boundedResponse(response)
+        const usage = parseProviderUsage(channel.wireProtocol, responseBody)
+        this.products.settle(attempt, responseBody, usage ?? null); settled = true
+        if (response.status === 401 || response.status === 403) {
+          throw new HttpError(502, '模型渠道认证失败，请管理员检查渠道与 API Key', 'provider_auth')
+        }
+        if (!response.ok) throw new HttpError(502, '模型服务暂时繁忙，请稍后重新提交。', 'provider_failed')
+      } catch (error) {
+        if (!settled) this.products.settle(attempt, responseBody || 'Request interrupted before complete provider response', null)
+        throw error
+      }
+      return JSON.parse(responseBody) as unknown
+    }
+    this.products.updateJob(jobId, 'running')
+    if (product.executor === 'text') {
+      const feilian = await readFeilianSession(this.config.tenantRoot, teamId)
+      this.products.appendStep(jobId, 'prepare')
+      const answered = await runTextWithTools({
+        protocol: channel.wireProtocol,
+        modelName: model.name,
+        system: `${system}\n\n${FEILIAN_TOOL_GUIDE}`,
+        userInput,
+        maxTokens,
+        tools: FEILIAN_TOOLS,
+        transport: { send },
+        executeTool: async (name, input) => feilian === undefined
+          ? '飞链知识库尚未登录：请先在侧边栏「飞链知识库」页面登录后重试。'
+          : await executeFeilianTool(name, input, feilian),
+        onRound: (round) => { this.products.appendStep(jobId, round === 0 ? 'think' : 'answer') },
+        onTool: (name, input) => {
+          const step = toolStep(name, input)
+          this.products.appendStep(jobId, step.kind, step.detail)
+        },
+      })
+      this.products.updateJob(jobId, 'completed', answered)
+      return
+    }
+    const body = channel.wireProtocol === 'openai-chat' ? { model: model.name, messages: [{ role: 'system', content: system }, { role: 'user', content: userInput }], stream: false, max_tokens: maxTokens }
+      : channel.wireProtocol === 'openai-responses' ? { model: model.name, input: [{ role: 'system', content: system }, { role: 'user', content: userInput }], stream: false, max_output_tokens: maxTokens }
+        : { model: model.name, system, messages: [{ role: 'user', content: userInput }], max_tokens: maxTokens, stream: false }
+    this.products.appendStep(jobId, 'answer')
+    const text = modelText(await send(body), channel)
     const clean = text.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')
     let payload: unknown
     try { payload = JSON.parse(clean) }
@@ -210,6 +259,7 @@ export class ProductRuntime implements ProductRunner {
     await mkdir(directory, { mode: 0o700 })
     const skillRoot = this.config.skillRoot
     assert(skillRoot, 'PPT Master requires a provisioned skill root')
+    this.products.appendStep(jobId, 'build')
     const receiptText = await python(this.config,
       [this.config.worker, skillRoot, directory], JSON.stringify(payload), this.stop.signal)
     const receipt: unknown = JSON.parse(receiptText)

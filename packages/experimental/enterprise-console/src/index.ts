@@ -433,6 +433,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
         worker: join(config.tenantSourceRoot, 'packages/experimental/enterprise-console/src/product-ppt-export.py'),
         modelTimeoutMs: config.productModelTimeoutMs, exportTimeoutMs: config.productExportTimeoutMs,
         maxOutputTokens: config.productMaxOutputTokens, concurrency: config.productConcurrency,
+        tenantRoot: config.tenantRoot,
       }, (error) => { ctx.logger.warn(error) })
       return new ProductApi(products, opened.store, productRunner)
     })(),
@@ -441,6 +442,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     resources: new TeamResources(config.tenantRoot),
     tenantPath: team => `${publicPathPrefix}${TENANT_ROOT}/${team.slug}/harness/`,
     prepareTenant: team => gateway.prepare(team),
+    tenantStatus: team => gateway.status(team),
     plugins: new SharedEnterprisePluginInstaller(pluginRoot, config.tenantSourceRoot),
     pluginsChanged: () => runtime.refresh(),
     verification: new VerificationService(config.verificationWebhookUrl === undefined ? {} : {

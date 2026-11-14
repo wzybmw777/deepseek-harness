@@ -9,7 +9,7 @@ import { requestAuthority, requestProtocol, sendError, sendEmpty, sendJson } fro
 import { resolvePublicPathPrefix } from './public-path.ts'
 import { ENTERPRISE_BRAND_NAME } from './session-guard.ts'
 import { parseTenantRoute, tenantHarnessPath, type TenantRoute } from './tenant-paths.ts'
-import type { TenantRuntimeLease } from './tenant-runtime.ts'
+import type { TenantRuntimeLease, TenantRuntimeStatus } from './tenant-runtime.ts'
 import { redactTenantRuntimeText } from './tenant-runtime.ts'
 import type { EnterpriseStore } from './store.ts'
 import type { TeamRecord } from './types.ts'
@@ -27,7 +27,10 @@ interface TenantGatewayDependencies {
   /** Public proxy prefix; omitted preserves origin-root URLs. */
   readonly publicPathPrefix?: string
   readonly store: Pick<EnterpriseStore, 'snapshot'>
-  readonly runtime: { ensureTenant(team: TeamRecord): Promise<TenantRuntimeLease> }
+  readonly runtime: {
+    ensureTenant(team: TeamRecord): Promise<TenantRuntimeLease>
+    status(team: TeamRecord): TenantRuntimeStatus
+  }
   readonly authenticate: (request: IncomingMessage) => EnterpriseRequestSession | undefined
   readonly webServer: Pick<WebServer, 'registerUpgrade'>
   readonly logger: { warn: (error: Error) => void }
@@ -188,6 +191,15 @@ export class TenantGateway {
     if (this.closed) throw new Error('tenant gateway: gateway is closed')
     this.ensureUpgradeRoute(team)
     await this.dependencies.runtime.ensureTenant(team)
+  }
+
+  /**
+   * Report a team's container readiness without starting it.
+   * @param team - active team that owns the public mount.
+   * @returns the runtime readiness snapshot.
+   */
+  status(team: TeamRecord): TenantRuntimeStatus {
+    return this.dependencies.runtime.status(team)
   }
 
   /**

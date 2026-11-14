@@ -305,7 +305,10 @@ export class DraftEditorRuntime {
 
   /**
    * Replace a span with a command chip followed by the claim token's
-   * argument separator, unless the separator already follows.
+   * argument separator, unless the separator already follows. A span that
+   * starts after reference chips takes the leading seat: the chip is inserted
+   * at the document start and the token is deleted where it stood, so those
+   * chips stay in the arguments.
    * @param span - detect-coordinate range.
    * @param claim - the command claim the chip anchors.
    * @param tail - the character following the range before editing.
@@ -317,10 +320,20 @@ export class DraftEditorRuntime {
     const separator = claim.token.slice(claim.token.trimEnd().length)
     let applied = false
     this.applyEdit(() => {
-      const nodes = separator === '' || tail === separator.charAt(0)
-        ? [$createCommandChipNode(claim)]
-        : [$createCommandChipNode(claim), $createTextNode(separator)]
-      applied = $replaceDetectSpanWithNodes(span, nodes)
+      if (span.start === 0) {
+        applied = $replaceDetectSpanWithNodes(span, separator === '' || tail === separator.charAt(0)
+          ? [$createCommandChipNode(claim)]
+          : [$createCommandChipNode(claim), $createTextNode(separator)])
+        return
+      }
+      // Leading reference chips already hold the seat: the command chip is
+      // inserted ahead of them and the token is deleted where it stood, so
+      // those chips stay in the arguments.
+      const gap = separator === '' ? ' ' : separator
+      if (!$replaceDetectSpanWithNodes({ start: 0, end: 0 }, [$createCommandChipNode(claim), $createTextNode(gap)])) return
+      const shift = 1 + gap.length
+      const end = span.end + shift + (tail === ' ' ? 1 : 0)
+      applied = $replaceDetectSpanWithText({ start: span.start + shift, end }, '')
     }, mergeHistory ? HISTORY_MERGE_TAG : undefined)
     return applied
   }

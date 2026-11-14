@@ -495,6 +495,10 @@ describe('SessionObservationReader cold path', () => {
         return Promise.reject(new Error('not used'))
       }
 
+      async delete(): Promise<boolean> {
+        return false
+      }
+
       // Appends are durable on resolution here; nothing buffers, so the service-wide flush is a no-op.
       async flush(): Promise<void> {}
 

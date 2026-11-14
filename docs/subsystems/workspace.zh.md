@@ -561,6 +561,15 @@ archiveSession(sessionId: SessionId, options: ArchiveSessionOptions = {}): Promi
 unarchiveSession(sessionId: SessionId): Promise<void>
 
 /**
+ * Forget one deleted Session's accounting: every Workspace record drops the
+ * id and the registry-global archive and pin sets drop it. The stored log is
+ * already gone, so this runs no existence check; an id nothing holds
+ * resolves without a write.
+ * @param sessionId - the Session whose stored log was deleted.
+ */
+forgetSession(sessionId: SessionId): Promise<void>
+
+/**
  * Pin one session durably, prepending it to the registry-global pin set.
  * The session must exist (live or in session persistence) and must not be
  * archived. An already pinned id resolves without writing or reordering.

@@ -13,6 +13,8 @@ The [Lexical composer decision](../../archived/architecture/2026-08-20-web-compo
 A claim replaces the leading trigger span with `CommandChipNode`, an atomic inline `DecoratorNode`, followed by the token's argument separator as an ordinary text node.
 
 - The node carries the `CommandClaim`, including its submit closure. History restores nodes with their fields, so undoing a chip deletion restores the claim. JSON export writes the token text; JSON import yields a plain text node because the closure has no JSON form.
+- A claim may follow reference chips. When only whitespace and reference chips precede the token, the editor inserts the command chip ahead of them and deletes the token where it stood, so those chips remain in the command arguments; typed text before the token still refuses the claim, and a document that already holds a command chip refuses a second one.
+ - A claim that sets `serializeArgs` serializes its clipboard arguments through the trigger pipeline before submitting, so reference chips after the token expand through their owner codec instead of reaching the command as bare label text; occurrence offsets shift by the length of the prefix the token consumed.
 - The detect projection counts the chip as one U+FFFC, so trigger detection never re-reads the command name. The clipboard projection is the token without its separator. The chip is not a reference occurrence. `EditorProjection.command` is the claim of a chip that opens the document.
 - Outside a submit transaction, the machine's claim follows the document: `draft-changed` carries the leading chip's claim, so deleting or displacing the chip releases the claim and a history restore re-enters claimed. A failed command submission settles to the same rule, so it returns to claimed exactly when a chip still leads; a claim adjudicated from typed text at Enter has no chip and returns to plain.
 - Node transforms keep the chip on the leading seat. A chip with a preceding sibling or inside a later block becomes its literal token, which releases the claim as typing before the old token did. The chip's own transform sees sibling insertions and moves between blocks; a paragraph transform sees a block inserted before the chip's block, so no update walks the whole document.
@@ -20,7 +22,7 @@ A claim replaces the leading trigger span with `CommandChipNode`, an atomic inli
 - The persisted draft records the leading chip's claim token (`DraftSnapshot.command`), never the claim. On restore the input asks the trigger pipeline's `resolveClaim`, which polls the optional source hook `matchClaim`: it awaits the source's catalog and answers only a claim, never invoking or executing the command, unlike Enter's `matchEnter`. The chip is rebuilt only at the revision the restore produced and merged into the seed's history entry; an earlier edit, an unclaimed token, or a catalog failure keeps the literal token, which Enter still adjudicates.
 - `claim-decor.ts` and the text-reference precedence rule are deleted.
 
-The `slash/input-*` events, `CommandClaim`, `InputState.claim`, and trigger sources keep their fields. `CommandClaim.token` still ends with the separator, and command arguments are still read from the clipboard text after it.
+The `slash/input-*` events, `CommandClaim`, `InputState.claim`, and trigger sources keep their fields; `CommandClaim` adds only the optional `serializeArgs` opt-in. `CommandClaim.token` still ends with the separator, and command arguments are still read from the clipboard text after it.
 
 ## Alternatives considered
 

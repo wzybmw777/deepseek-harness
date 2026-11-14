@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write apps/desktop/web-shell/README.md
 /zhiliu-desktop-web-shell:
-  en: 91f29d7e53c4ab10
-  zh: fd60997c0a681365
+  en: ea7d56949d4f03d2
+  zh: 5d4aadca684dee35
 /zhiliu-desktop-web-shell/windows-client-updates:
   en: 64f35901e978657c
   zh: 2d3868b10fe46a89

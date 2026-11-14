@@ -13,6 +13,8 @@ Status: implemented
 认领把行首触发区间替换为 `CommandChipNode`（一个原子 inline `DecoratorNode`），其后是作为普通文本节点的 token 参数分隔符。
 
 - 节点携带 `CommandClaim`，包括其 submit 闭包。历史记录恢复节点时连同字段一起恢复，因此撤销 chip 删除会恢复认领。JSON 导出写入 token 文本；闭包没有 JSON 形式，因此 JSON 导入得到纯文本节点。
+- 认领可以跟在引用 chip 之后。token 前只有空白和引用 chip 时，编辑器把命令 chip 插到它们之前并删除原位置上的 token，这些 chip 因此留在命令参数中；token 前有输入文字时仍拒绝认领，已有命令 chip 的文档也拒绝第二个认领。
+ - 设置 `serializeArgs` 的认领在提交前经触发管线序列化其剪贴板参数，因此 token 之后的引用 chip 会经各自的 owner codec 展开，而不是以裸标签文本进入命令；occurrence 偏移按 token 消耗的前缀长度平移。
 - 检测投影把 chip 计为一个 U+FFFC，触发检测不会再读到命令名。剪贴板投影是不含分隔符的 token。chip 不是引用 occurrence。`EditorProjection.command` 是位于文档开头的 chip 所携带的认领。
 - 在提交事务之外，状态机的认领跟随文档：`draft-changed` 携带行首 chip 的认领，因此删除或挤开 chip 会释放认领，历史恢复会重新进入 claimed。命令提交失败后按同一规则结算，只要行首仍有 chip 就回到 claimed；Enter 时从输入文本裁决出的认领没有 chip，回到 plain。
 - 节点 transform 让 chip 保持在行首位置。前面有兄弟节点或位于后续块中的 chip 会变回字面 token，并像在旧 token 前输入那样释放认领。chip 自身的 transform 覆盖兄弟节点插入和跨块移动；段落 transform 覆盖在 chip 所在块之前插入块的情况，因此没有任何更新需要遍历整个文档。
@@ -20,7 +22,7 @@ Status: implemented
 - 持久化的草稿记录行首 chip 的认领 token（`DraftSnapshot.command`），从不保存认领本身。恢复时输入框调用触发管线的 `resolveClaim`，它轮询可选的 source 钩子 `matchClaim`：等待 source 的目录就绪，只应答认领，与 Enter 的 `matchEnter` 不同，从不调用或执行命令。chip 只在恢复产生的那个版本上重建，并合入种子的历史条目；在此之前发生的编辑、无人认领的 token 或目录加载失败都会保留字面 token，Enter 仍会对其裁决。
 - 删除 `claim-decor.ts` 和文本引用的优先级规则。
 
-`slash/input-*` 事件、`CommandClaim`、`InputState.claim` 与触发源的字段保持不变。`CommandClaim.token` 仍以分隔符结尾，命令参数仍从其后的剪贴板文本读取。
+`slash/input-*` 事件、`CommandClaim`、`InputState.claim` 与触发源的字段保持不变，仅 `CommandClaim` 新增可选的 `serializeArgs` 开关。`CommandClaim.token` 仍以分隔符结尾，命令参数仍从其后的剪贴板文本读取。
 
 ## 考虑过的替代方案
 

@@ -61,6 +61,7 @@ kind: "package-bundle"
 可见工具集与 schema 不变时前缀稳定。登录或退出会改变工具可用性，可能从第一个变化的 schema token 起使复用失效。
 
 
+<a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与后续工作
 
 - 内置副本对应一个上游版本。重新纳入更新的 `dsh-feilian-kb` 时需要重复上述四处本地改动。

@@ -48,6 +48,7 @@ kind: "package-bundle"
 
 无直接影响；每次产品运行拥有自己的提示。
 
+<a id="known-limitations-and-deferred-work"></a>
 ## 已知限制与后续工作
 
 - Bundle 只携带一个目录版本。管理员删除的条目不会自动恢复，直到随包目录发生变化，此时只会重新插入新增的标识。

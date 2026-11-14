@@ -410,6 +410,33 @@ export class WorkspaceRegistry extends Service {
   }
 
   /**
+   * Forget one deleted Session's accounting: every Workspace record drops the
+   * id and the registry-global archive and pin sets drop it. The stored log is
+   * already gone, so this runs no existence check; an id nothing holds
+   * resolves without a write.
+   * @param sessionId - the Session whose stored log was deleted.
+   */
+  forgetSession(sessionId: SessionId): Promise<void> {
+    return this.enqueueOperation(async () => {
+      for (const entity of this.entities.values()) {
+        if (entity.sessionIds.includes(sessionId)) await entity.detachSession(sessionId)
+      }
+      const state = this.requireState()
+      const archivedSessionIds = state.archivedSessionIds.filter(id => id !== sessionId)
+      const pinnedSessionIds = state.pinnedSessionIds.filter(id => id !== sessionId)
+      const archiving = archivedSessionIds.length !== state.archivedSessionIds.length
+      const pinning = pinnedSessionIds.length !== state.pinnedSessionIds.length
+      if (archiving || pinning) {
+        await this.setState({ ...state, archivedSessionIds, pinnedSessionIds })
+      }
+      this.headers.delete(sessionId)
+      this.sessionPaths.delete(sessionId)
+      this.missingSessionPaths.delete(sessionId)
+      this.invalidSessionPaths.delete(sessionId)
+    })
+  }
+
+  /**
    * The registry-global pin set: sessions surfaced ahead of every unpinned
    * session on grouping surfaces. Pinning never touches workspace accounting.
    * @returns Session ids in pin order (most recently pinned first).

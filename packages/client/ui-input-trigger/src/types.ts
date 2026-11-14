@@ -33,7 +33,10 @@ export interface ClientSessionContext {
 /** Trigger character a source binds to. */
 export type TriggerChar = '/' | '@'
 
-/** Where the trigger token sits in the draft: leading (trimmed draft starts with it) or inline. */
+/**
+ * Where the trigger token sits in the draft: leading when only whitespace and
+ * atomic reference chips precede it, inline when typed text does.
+ */
 export type TriggerPosition = 'leading' | 'inline'
 
 /** Which of the three pick paths produced a pick. */

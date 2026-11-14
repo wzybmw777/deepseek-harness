@@ -101,6 +101,16 @@ export class SessionForkError extends Error {
   }
 }
 
+/** Structured session-delete failure; `rpcError.code` separates a busy Session. */
+export class SessionDeleteError extends Error {
+  override readonly name = 'SessionDeleteError'
+
+  /** @param rpcError - Host business or folded transport error. */
+  constructor(readonly rpcError: RemoteFailure) {
+    super(`session delete failed: ${rpcError.code}: ${rpcError.message}`)
+  }
+}
+
 /** Identity-stable logical binding for one materialized Client Session. */
 export interface SessionBinding {
   readonly sessionId: SessionId
@@ -371,6 +381,17 @@ export class ClientSessions implements ISessions {
    */
   refresh(): Promise<void> {
     return this.manager.refreshList()
+  }
+
+  /**
+   * Permanently delete a Session without opening its history. A Session with
+   * running work is refused by the Host rather than stopped implicitly.
+   * @param sessionId - Session to delete.
+   * @throws SessionDeleteError when the Host refuses or the transport fails.
+   */
+  async delete(sessionId: SessionId): Promise<void> {
+    const result = await this.manager.delete(sessionId)
+    if (!result.ok) throw new SessionDeleteError(result.error)
   }
 
   /**

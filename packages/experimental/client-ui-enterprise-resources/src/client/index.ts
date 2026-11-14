@@ -13,6 +13,8 @@ import { UsageSummary } from './UsageSummary.tsx'
 import { ProjectPicker } from './ProjectPicker.tsx'
 import { InteractionView } from './InteractionView.tsx'
 import { openProductConversation, registerProductMentions } from './mentions.ts'
+import { registerFeilianMentions } from './feilian-mentions.ts'
+import { FeilianKbReference, feilianKbRule } from './feilian-reference.tsx'
 import { reportTurnUsage } from './usage-reporter.ts'
 import { de, en, es, fr, ja, NS, pt, ru, zh } from './locales.ts'
 
@@ -35,7 +37,7 @@ export type ResourceKind = keyof typeof RESOURCE_PANEL_IDS
 
 /** Required services: the slot registry, locale dictionaries, and panel navigation. */
 export const inject = [
-  'slots', 'locale', 'layout', 'sessions', 'conversation', 'inputTriggers', 'uiWorkspace', 'workspaces', 'remote', 'remote.commands',
+  'slots', 'locale', 'layout', 'sessions', 'conversation', 'uiConversation', 'inputTriggers', 'uiWorkspace', 'workspaces', 'remote', 'remote.commands',
 ]
 
 function resourceKind(value: unknown): ResourceKind | undefined {
@@ -59,7 +61,14 @@ function activeKind(panelId: MainPanelId | null): ResourceKind | null {
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'enterprise-resources: dictionaries')
   ctx.effect(() => reportTurnUsage(ctx), 'enterprise-resources: turn usage')
-  ctx.effect(() => registerProductMentions(ctx, ctx.locale.bind(NS)), 'enterprise-resources: @ agents and knowledge')
+  ctx.effect(() => registerProductMentions(ctx, ctx.locale.bind(NS)), 'enterprise-resources: @ agents')
+  ctx.effect(() => registerFeilianMentions(ctx, ctx.locale.bind(NS)), 'enterprise-resources: @ knowledge bases')
+  ctx.uiConversation.userText.register(feilianKbRule)
+  ctx.slots.inject('conversation.user.text.node', function* () {
+    yield ctx.slots.register({
+      name: 'conversation.user.text.node', key: 'feilianKb', priority: 100, locale: NS,
+    }, FeilianKbReference)
+  })
   ctx.slots.inject('conversation.chat.commandview', function* () {
     yield ctx.slots.register({ name: 'conversation.chat.commandview', key: 'enterprise-task', locale: NS }, InteractionView)
   })

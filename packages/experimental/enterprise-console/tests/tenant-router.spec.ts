@@ -107,6 +107,7 @@ async function startGateway(upstream: Upstream, publicPathPrefix = ''): Promise<
           begin: () => () => undefined,
         } satisfies TenantRuntimeLease
       },
+      status: () => ({ state: 'stopped' }),
     },
     authenticate: (request) => {
       const name = request.headers['x-test-session']

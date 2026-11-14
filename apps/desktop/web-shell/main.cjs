@@ -25,6 +25,8 @@ if (debugPort && /^[0-9]+$/u.test(debugPort)) app.commandLine.appendSwitch('remo
 let mainWindow
 let updates
 let installPromptOpen = false
+let allowQuit = false
+let quitPromptOpen = false
 
 async function confirmInstall() {
   if (installPromptOpen || updates.getState().status !== 'downloaded' || !mainWindow || mainWindow.isDestroyed()) return false
@@ -43,6 +45,28 @@ async function confirmInstall() {
     return result.response === 1 && updates.install()
   } finally {
     installPromptOpen = false
+  }
+}
+
+async function confirmQuit() {
+  if (quitPromptOpen || !mainWindow || mainWindow.isDestroyed()) return
+  quitPromptOpen = true
+  try {
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      title: '退出织流',
+      message: '确定要退出织流吗？',
+      detail: '退出后未保存的编辑内容可能会丢失。',
+      buttons: ['取消', '退出'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    })
+    if (result.response !== 1) return
+    allowQuit = true
+    mainWindow.close()
+  } finally {
+    quitPromptOpen = false
   }
 }
 
@@ -204,6 +228,11 @@ function createWindow() {
   })
 
   mainWindow.once('ready-to-show', () => mainWindow.show())
+  mainWindow.on('close', (event) => {
+    if (allowQuit) return
+    event.preventDefault()
+    void confirmQuit()
+  })
   mainWindow.on('closed', () => { mainWindow = undefined })
   mainWindow.on('page-title-updated', (event) => {
     event.preventDefault()
@@ -233,5 +262,6 @@ if (!lock) {
     if (mainWindow === undefined || mainWindow.isDestroyed()) createWindow()
     else focusWindow()
   })
+  app.on('before-quit', () => { allowQuit = true })
   app.on('window-all-closed', () => app.quit())
 }

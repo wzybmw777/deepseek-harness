@@ -15,18 +15,23 @@ const agent = { id: 'copy', title: '文案助手', description: '', category: '�
 function fixture() {
   const sources: InputTriggerSource[] = []
   const execute = vi.fn(async () => ({ ok: true, value: { result: { kind: 'success' } } }))
+  const rename = vi.fn(async () => ({ ok: true, value: { title: '文案助手', seq: 1 } }))
+  const reference = { binding: { session: { rename } } }
   const actx = {}
   const context = {
     inputTriggers: { registerSource: (value: InputTriggerSource) => { sources.push(value); return vi.fn() } },
     remote: { commands: { execute } },
     conversation: { input: { for: () => ({ state: { getSnapshot: () => ({ occurrences: [] }) } }) } },
     sessions: { sessionOf: () => ({ sessionId: 'session-a' }), scope: () => actx,
-      using: async (_id: string, _options: object, callback: () => Promise<unknown>) => callback() },
+      using: async (_id: string, _options: object, callback: (reference: never) => Promise<unknown>) => callback(reference as never),
+      list: { getSnapshot: () => ({ byId: { 'session-a': { title: undefined } } }) } },
   }
   registerProductMentions(context as never, makeTranslate(zh))
   vi.spyOn(workbenchProducts, 'identity').mockResolvedValue(member)
   vi.spyOn(workbenchProducts, 'market').mockResolvedValue({ access, agents: [agent], jobs: [] })
-  return { source: sources[0]!, execute, actx }
+  const source = sources.find(item => item.name === 'enterprise-agents')
+  if (source === undefined) throw new Error('expected the enterprise agent source')
+  return { source, execute, actx, rename }
 }
 
 describe('@ agents', () => {
@@ -56,5 +61,15 @@ describe('@ agents', () => {
     expect(run.mock.calls[0]?.[2]).toBe(run.mock.calls[1]?.[2])
     expect(execute).toHaveBeenLastCalledWith('session-a', '/enterprise-task {"kind":"agent","jobId":"job-a"}', [])
     expect(sessionStorage.length).toBe(0)
+  })
+
+  it('names an untitled chat after the chosen agent', async () => {
+    vi.stubGlobal('crypto', webcrypto)
+    const { source, actx, rename } = fixture()
+    vi.spyOn(workbenchProducts, 'run').mockResolvedValue({ id: 'job-b' } as never)
+    const outcome = await source.matchEnter!({ sessionId: 'session-a' } as never, '@文案助手 制作新品文案', new AbortController().signal, { attachments: 0 })
+    if (!outcome || typeof outcome !== 'object' || !('claim' in outcome)) throw new Error('Expected a product claim')
+    expect((await outcome.claim.submit('制作新品文案', actx as never, [])).kind).toBe('success')
+    expect(rename).toHaveBeenCalledWith('文案助手')
   })
 })

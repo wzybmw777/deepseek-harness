@@ -100,5 +100,11 @@ export function registerToasts(
         filterAction: archiveFilterAction,
       }),
     }, ArchiveToastEntry)
+    yield ctx.slots.register({
+      name: 'workspace.toast', key: 'deleted', locale: 'workspace',
+      inject: (): ToastDisplayInjected<'deleted'> => ({
+        display: (_notice, t) => ({ text: t('toast.deleted'), tone: 'success', holdMs: 6000 }),
+      }),
+    }, ToastEntry<PropsRuntime<'workspace.toast', 'deleted'>>)
   })
 }

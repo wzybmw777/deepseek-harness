@@ -55,8 +55,20 @@ export interface AgentJob {
   readonly result: string | null
   readonly error: string | null
   readonly artifact: string | null
+  readonly steps: readonly AgentJobStep[]
   readonly charged: number
   readonly createdAt: string
+}
+
+/** Coarse, localized-on-display stages recorded while one task runs. */
+export type AgentJobStepKind = 'prepare' | 'think' | 'search' | 'read' | 'answer' | 'build' | 'tool'
+
+/** One durable progress stage; only the newest stage stays running. */
+export interface AgentJobStep {
+  readonly kind: AgentJobStepKind
+  readonly detail?: string
+  readonly at: string
+  readonly state: 'running' | 'done' | 'failed'
 }
 
 /** One team member shown with a public team card. */

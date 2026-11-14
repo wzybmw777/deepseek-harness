@@ -10,6 +10,7 @@ import type {
 import { EnterpriseApi } from '../src/api.ts'
 import { parseEnterprisePluginSpec, type EnterprisePluginInstaller } from '../src/plugin-installer.ts'
 import type { RemoteBrowserService } from '../src/remote-browser.ts'
+import type { TenantRuntimeStatus } from '../src/tenant-runtime.ts'
 import { EnterpriseStore } from '../src/store.ts'
 import { TeamResources } from '../src/team-resources.ts'
 import { VerificationService, type VerificationMessage } from '../src/verification.ts'
@@ -29,6 +30,7 @@ interface HarnessOptions {
   readonly publicPathPrefix?: string
   readonly verification?: boolean
   readonly remoteBrowser?: RemoteBrowserService
+  readonly tenantStatus?: () => TenantRuntimeStatus
 }
 
 interface CallOptions {
@@ -63,6 +65,7 @@ async function startHarness(options: HarnessOptions = {}): Promise<Harness> {
     resources: new TeamResources(tenantRoot),
     tenantPath: team => `${options.publicPathPrefix ?? ''}/t/${team.slug}/harness/`,
     prepareTenant: async (team) => { preparedTeams.push(team.id) },
+    ...(options.tenantStatus === undefined ? {} : { tenantStatus: () => options.tenantStatus?.() ?? { state: 'stopped' as const } }),
     plugins,
     ...(options.verification === false ? {} : { verification }),
     ...(options.remoteBrowser === undefined ? {} : { remoteBrowser: options.remoteBrowser }),
@@ -200,6 +203,22 @@ describe('enterprise authentication and Harness gate', { concurrent: false }, ()
     expect((await call('/session', { cookie: legacyGuestCookie })).response.status).toBe(401)
     expect((await call('/session/authorize', { cookie: legacyGuestCookie })).response.status).toBe(401)
     expect((await call('/dashboard', { cookie: legacyGuestCookie })).response.status).toBe(401)
+  })
+
+  it('reports launch progress to the boot screen instead of holding the navigation open', async () => {
+    harness = await startHarness({ tenantStatus: () => ({ state: 'ready', elapsedMs: 4200 }) })
+
+    expect((await call('/harness/status')).response.status).toBe(401)
+
+    const { cookie } = await login('owner@example.com', harness.password)
+    const started = await call('/harness/launch?wait=0', { cookie })
+    expect(started.response.status).toBe(202)
+    expect(started.body).toMatchObject({ slug: 'default', state: 'starting', readyUrl: '/t/default/harness/' })
+    expect(harness.preparedTeams).toEqual(['team-default'])
+
+    const status = await call('/harness/status', { cookie })
+    expect(status.response.status).toBe(200)
+    expect(status.body).toMatchObject({ slug: 'default', state: 'ready', elapsedMs: 4200, readyUrl: '/t/default/harness/' })
   })
 
   it('requires a signed session before granting workspace access', async () => {

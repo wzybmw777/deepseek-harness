@@ -420,6 +420,18 @@ abstract stat(id: SessionId, options?: SessionPersistenceStatOptions): Promise<S
  * @returns one snapshot per stored session.
  */
 abstract list(options?: SessionPersistenceListOptions): Promise<readonly SessionPersistenceSnapshot[]>
+
+/**
+ * Delete every stored artifact for one session, including retired format
+ * generations. The caller owns the decision and its confirmation; this seam
+ * applies no retention policy and reports no event.
+ * @param id - the stored session to remove.
+ * @param options - optional cancellation.
+ * @returns whether any stored artifact existed.
+ * @throws {SessionAlreadyOwnedError} when this process still holds the
+ *   session's write ownership; close that handle first.
+ */
+abstract delete(id: SessionId, options?: SessionPersistenceDeleteOptions): Promise<boolean>
 ```
 
 Types: [SessionId](core.md)

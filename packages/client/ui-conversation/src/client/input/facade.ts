@@ -486,8 +486,8 @@ export class SessionInputShell implements SessionInput {
 
   /**
    * Apply one command claim (scoped begin-command event listener body): the
-   * editor replaces [0, span.end) with the command chip and its separator,
-   * then the machine enters claimed.
+   * editor gives the command chip the leading seat and its separator, then
+   * the machine enters claimed.
    * @param claim - the command claim from the pick path.
    * @param span - pick-time span snapshot (detect coordinates).
    * @returns whether the edit applied (phase, span CAS, and leading guard passed).
@@ -497,7 +497,9 @@ export class SessionInputShell implements SessionInput {
   }
 
   /**
-   * Replace [0, span.end) with the command chip and enter claimed.
+   * Give the command chip the leading seat and enter claimed. Whitespace and
+   * reference chips may precede the token; the editor keeps those chips in
+   * the arguments.
    * @param mergeHistory - merge the edit into the previous history entry.
    * @returns whether the edit applied.
    */
@@ -505,11 +507,13 @@ export class SessionInputShell implements SessionInput {
     const phase = this.core.state.phase
     if (phase !== 'plain' && phase !== 'claimed') return false
     if (span.draftRev !== this.rev) return false
-    // Leading-trigger contract: only whitespace may precede the span; the
-    // whitespace prefix is dropped so the chip takes the leading seat.
-    if (this.projection.detectText.slice(0, span.start).trim() !== '') return false
+    // Leading-trigger contract: only whitespace and reference chips may
+    // precede the span; the editor inserts the chip ahead of them and keeps
+    // them as the claim's arguments. A document takes one command chip.
+    if (this.projection.command !== undefined) return false
+    if (/[^\s\uFFFC]/u.test(this.projection.detectText.slice(0, span.start))) return false
     const tail = this.projection.detectText.slice(span.end, span.end + 1)
-    const applied = this.draftEditor.insertCommand({ start: 0, end: span.end }, claim, tail, mergeHistory)
+    const applied = this.draftEditor.insertCommand(span, claim, tail, mergeHistory)
     if (!applied) return false
     this.dispatchRun(({ type: 'claim', claim }))
     return true
@@ -816,7 +820,9 @@ export class SessionInputShell implements SessionInput {
         // Serialization may outlive the attempt (large files, session
         // teardown); a dead attempt must not reach the Host executor.
         if (this.dead(attempt)) return undefined
-        return claim.submit(args, this.deps.actx, attachments)
+        const submitted = claim.serializeArgs === true ? await this.serializeClaimArgs(attempt, args) : args
+        if (this.dead(attempt)) return undefined
+        return claim.submit(submitted, this.deps.actx, attachments)
       })
       .then(
         (outcome) => {
@@ -841,6 +847,30 @@ export class SessionInputShell implements SessionInput {
           }))
         },
       )
+  }
+
+  /**
+   * Expand the reference chips and quotes inside one claim's arguments into
+   * their model form. The arguments are the submitted draft's tail, so each
+   * occurrence offset shifts by the prefix the claim token consumed.
+   * @param attempt - the frozen submission.
+   * @param args - clipboard-form text after the claim token.
+   * @returns the serialized arguments (a promise when a chip needs its codec).
+   */
+  private serializeClaimArgs(attempt: SubmitAttempt, args: string): Promise<string> | string {
+    const start = attempt.draftSnapshot.length - args.length
+    const references = attempt.occurrences
+      .filter(item => item.offset >= start)
+      .map(item => ({ ...item, offset: item.offset - start }))
+    const quotes = attempt.quotes
+      .filter(item => item.offset >= start)
+      .map(item => ({ ...item, offset: item.offset - start }))
+    if (references.length === 0 && quotes.length === 0) return args
+    const inputTriggers = this.deps.inputTriggers?.()
+    if (inputTriggers === undefined) throw new Error('no trigger pipeline for command arguments')
+    return serializeDraftPrompt(snapshotDraft(args, references, undefined, quotes), (source, ref) => {
+      return inputTriggers.serializeReference(source, ref, attempt.signal)
+    })
   }
 
   /** Late-settlement guard: superseded attempts and disposed facades drop silently. */

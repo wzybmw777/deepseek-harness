@@ -42,6 +42,8 @@ import type {
   SessionCancelValue,
   SessionCreateRequest,
   SessionCreateValue,
+  SessionDeleteRequest,
+  SessionDeleteValue,
   SessionForkRequest,
   SessionForkValue,
   SessionPromptRequest,
@@ -218,6 +220,59 @@ export class SessionCommandController {
         {},
       )
     }
+  }
+
+  /**
+   * Delete one ordinary Session: stop nothing, remove its stored artifacts,
+   * and clear its Workspace accounting. Running work refuses first, because
+   * the deletion would otherwise race a turn that is still appending.
+   * @param request - Session identity to remove.
+   * @returns whether a stored log existed.
+   */
+  async delete(request: SessionDeleteRequest): Promise<SessionDeleteValue> {
+    const { sessionId } = request
+    const live = this.ctx.agents.get(sessionId)
+    if (live !== undefined && hasApiSessionSubagentOwner(live.session)) {
+      throw apiSessionSubagentOwnershipError(sessionId)
+    }
+    const persistence = this.ctx.get('sessionPersistence')
+    const stored = await persistence?.stat(sessionId)
+    if (stored === undefined && live === undefined) {
+      throw new RemoteError('session/not-found', `session "${sessionId}" not found`, { sessionId })
+    }
+    const activity = await this.ctx.waterfall(
+      'workspace/session-activity', { sessionId }, () => Promise.resolve([]),
+    )
+    if (activity.length > 0) {
+      throw new RemoteError(
+        'session/active',
+        `session "${sessionId}" still has running work; stop it before deleting`,
+        { sessionId },
+      )
+    }
+    await this.agents.disposeAgent(sessionId)
+    let deleted = false
+    if (stored !== undefined) {
+      try {
+        deleted = (await persistence?.delete(sessionId)) ?? false
+      } catch (error: unknown) {
+        throw new RemoteError(
+          'gateway/internal',
+          `failed to delete session "${sessionId}": ${String(error)}`,
+          { sessionId },
+        )
+      }
+    }
+    if (deleted) {
+      try {
+        await this.ctx.workspaceRegistry.forgetSession(sessionId)
+      } catch (error: unknown) {
+        this.ctx.logger.warn(
+          `session-controller: deleted "${sessionId}" but its Workspace accounting was not cleared: ${String(error)}`,
+        )
+      }
+    }
+    return { deleted }
   }
 
   /**

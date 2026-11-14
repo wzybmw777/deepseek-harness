@@ -7,6 +7,7 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type {
   SessionControlBaseline,
   SessionControlFrame,
+  SessionDeleteValue,
   SessionProjectionHints,
   SessionRenameValue,
   SessionSummary,
@@ -566,6 +567,20 @@ export class SessionManager {
     const result = await this.remote.session.rename({ sessionId, title })
     if (result.ok) {
       this.projectionStore(sessionId).apply('title', result.value.title, SessionSeq(result.value.seq))
+    }
+    return result
+  }
+
+  /**
+   * Delete a Session and drop its row without opening its history.
+   * @param sessionId - Session to delete.
+   * @returns whether a stored log existed, or the Remote failure.
+   */
+  async delete(sessionId: SessionId): Promise<RemoteResult<SessionDeleteValue>> {
+    const result = await this.remote.session.delete({ sessionId })
+    if (result.ok) {
+      this.handleSessionRemoved(sessionId)
+      void this.refreshList()
     }
     return result
   }

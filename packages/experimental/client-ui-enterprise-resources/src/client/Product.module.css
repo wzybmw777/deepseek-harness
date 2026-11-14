@@ -145,6 +145,17 @@
 .interactionMarkdown { padding: 4px 0 16px; overflow-wrap: anywhere; font-size: 14px; line-height: 1.8; }
 .interaction footer { justify-content: space-between; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
 .interactionError { display: flex; align-items: center; gap: 12px; }
+.steps { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; padding: 12px 14px; list-style: none; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
+.step { display: flex; align-items: baseline; gap: 8px; }
+.stepMark { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-border-l3); }
+.step[data-state='done'] { color: var(--dsw-alias-label-tertiary); }
+.step[data-state='done'] .stepMark { background: var(--dsw-alias-state-success-primary); }
+.step[data-state='running'] { color: var(--dsw-alias-label-primary); }
+.step[data-state='running'] .stepMark { background: var(--dsw-alias-state-business-primary); animation: stepPulse 1.4s ease-in-out infinite; }
+.step[data-state='failed'] { color: var(--dsw-alias-state-error-primary); }
+.step[data-state='failed'] .stepMark { background: var(--dsw-alias-state-error-primary); }
+@keyframes stepPulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .step[data-state='running'] .stepMark { animation: none; } }
 .knowledgeSwitch button:focus-visible, .libraries > button:focus-visible, .binding a:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color); outline-offset: 2px; }
 @media (hover: hover) { .libraries > button:hover, .knowledgeSwitch button:hover { background: var(--dsw-alias-interactive-bg-hover); } }
 @media (max-width: 520px) { .knowledgeSwitch { padding-inline: 16px; } .knowledgeSwitch button { min-height: 44px; } .libraryHeader > span { flex-basis: 100%; } }

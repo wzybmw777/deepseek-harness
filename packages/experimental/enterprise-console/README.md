@@ -121,7 +121,7 @@ Set `productPptSkillRoot` / `DSH_PRODUCT_PPT_SKILL_ROOT` to a verified PPT Maste
 <a id="model-experience"></a>
 ## Model Experience
 
-Team knowledge acts indirectly through the existing `skill-filesystem` catalog and `skill` tool, which expose user-created skills and `team-knowledge`; knowledge references remain ordinary workspace files. Product tasks separately send configured prompts, Skill instructions and supplied material; complete requests persist in product attempts outside Harness Sessions.
+Team knowledge acts indirectly through the existing `skill-filesystem` catalog and `skill` tool, which expose user-created skills and `team-knowledge`; knowledge references remain ordinary workspace files. Product tasks separately send configured prompts, Skill instructions and supplied material. Text tasks may also call the tenant's Feilian knowledge-base tools (`feilian_kb_search` and `feilian_kb_page`) with the grant a member stored by signing in from the sidebar, so answers can cite compiled knowledge pages; complete requests persist in product attempts outside Harness Sessions.
 
 #### KV Cache effect
 
@@ -139,6 +139,7 @@ Creating or deleting a skill, or changing its description, changes the skill cat
 - Model-channel credentials are encrypted at rest but are administrative metadata; wiring them into model routing remains owned by the Harness provider configuration.
 - Verification-code delivery depends on a deployment-operated HTTPS webhook gateway; the console does not embed an email or SMS provider.
 - Remote Chromium rejects literal IP addresses and private suffixes but does not resolve third-party host names before navigation; deployment egress policy remains the network boundary.
+- Feilian tool calls are limited to text agents and reuse the tenant-wide grant a member stored from the sidebar; the PPT executor still runs one tool-free completion.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -20,6 +20,7 @@ const TOKEN_LINE = /^dsh web:\s+(\S+)\s*$/u
 const TENANT_LABEL = 'io.deepseek.enterprise.tenant'
 const NODE_DESTINATION = '/opt/node24'
 const NODE_BINARY = `${NODE_DESTINATION}/bin/node`
+const NODE_COMPILE_CACHE_DIRECTORY = '.node-compile-cache'
 const TENANT_TOOL_POLICY_ENTRY = fileURLToPath(new URL('../lib/tenant-tool-policy.js', import.meta.url))
 
 /** Deployment settings for the tenant container pool. */
@@ -58,6 +59,14 @@ export interface TenantRuntimeConfig {
   readonly containerMemoryMb: number
   /** Hard PID ceiling. */
   readonly containerPids: number
+}
+
+/** Read-only readiness snapshot for one team container. */
+export interface TenantRuntimeStatus {
+  /** Whether the container is absent, starting, or serving requests. */
+  readonly state: 'stopped' | 'starting' | 'ready'
+  /** Milliseconds since the current start began, when one is in flight or complete. */
+  readonly elapsedMs?: number
 }
 
 /** One authenticated route to a running tenant container. */
@@ -267,6 +276,7 @@ function containerEnvironment(home: string): string[] {
   env.push(
     `HOME=${home}`,
     `DSH_HOME=${home}`,
+    `NODE_COMPILE_CACHE=${join(home, NODE_COMPILE_CACHE_DIRECTORY)}`,
     `TMPDIR=${join(home, 'tmp')}`,
     `XDG_CONFIG_HOME=${join(home, '.config')}`,
     `XDG_DATA_HOME=${join(home, '.local', 'share')}`,
@@ -379,6 +389,7 @@ class TenantRuntimeProcess {
   private active = 0
   private lastUsed = Date.now()
   private stopping = false
+  private startedAt: number | undefined
   private stderr = ''
 
   constructor(
@@ -396,13 +407,24 @@ class TenantRuntimeProcess {
     return this.active === 0 && Date.now() - this.lastUsed >= this.options.config.idleTimeoutMinutes * 60_000
   }
 
+  get isStarting(): boolean {
+    return this.starting !== undefined
+  }
+
+  get startedAtMs(): number | undefined {
+    return this.startedAt
+  }
+
   async ensure(slug: string): Promise<TenantRuntimeLease> {
     if (slug !== this.slug) {
       this.slug = slug
       if (this.isReady) await this.stop()
     }
     if (this.isReady) return this.lease()
-    this.starting ??= this.start().finally(() => { this.starting = undefined })
+    if (this.starting === undefined) {
+      this.startedAt = Date.now()
+      this.starting = this.start().finally(() => { this.starting = undefined })
+    }
     await this.starting
     return this.lease()
   }
@@ -457,7 +479,8 @@ class TenantRuntimeProcess {
     const workspace = join(documents, 'deepseek-harness', 'default-workspace')
     const profile = join(home, 'profiles', this.options.config.profile)
     for (const path of [tenantRoot, home, documents, workspace, join(home, 'tmp'), profile,
-      join(home, '.config'), join(home, '.local', 'share'), join(home, '.cache'), join(home, '.local', 'state')]) {
+      join(home, NODE_COMPILE_CACHE_DIRECTORY), join(home, '.config'), join(home, '.local', 'share'),
+      join(home, '.cache'), join(home, '.local', 'state')]) {
       await privateDirectory(path)
     }
     await this.seedProfile(profile)
@@ -627,6 +650,7 @@ class TenantRuntimeProcess {
     this.child = undefined
     this.containerName = undefined
     this.cookie = undefined
+    this.startedAt = undefined
     const port = this.port
     this.port = undefined
     if (port !== undefined) this.options.releasePort(port)
@@ -710,6 +734,24 @@ export class TenantRuntimeManager {
       void this.reapIdle()
     }, 60_000)
     this.idleTimer.unref()
+  }
+
+  /**
+   * Report a team's container state without starting it.
+   * @param team - team whose runtime should be inspected.
+   * @returns the readiness snapshot rendered by the launch progress screen.
+   */
+  status(team: TeamRecord): TenantRuntimeStatus {
+    const runtime = this.runtimes.get(team.id)
+    if (runtime === undefined) return { state: 'stopped' }
+    if (runtime.isReady) return this.snapshot('ready', runtime)
+    if (runtime.isStarting) return this.snapshot('starting', runtime)
+    return { state: 'stopped' }
+  }
+
+  private snapshot(state: 'starting' | 'ready', runtime: TenantRuntimeProcess): TenantRuntimeStatus {
+    const startedAt = runtime.startedAtMs
+    return startedAt === undefined ? { state } : { state, elapsedMs: Math.max(0, Date.now() - startedAt) }
   }
 
   /**

@@ -50,6 +50,16 @@ export interface PlanAccess {
 }
 
 /** A member's durable task and downloadable result. */
+export type MarketJobStepKind = 'prepare' | 'think' | 'search' | 'read' | 'answer' | 'build' | 'tool'
+
+/** One recorded processing stage; the newest row is the current stage. */
+export interface MarketJobStep {
+  readonly kind: MarketJobStepKind
+  readonly detail?: string
+  readonly at: string
+  readonly state: 'running' | 'done' | 'failed'
+}
+
 export interface MarketJob {
   readonly id: string
   readonly agentId: string
@@ -59,6 +69,7 @@ export interface MarketJob {
   readonly result: string | null
   readonly error: string | null
   readonly artifact: string | null
+  readonly steps?: readonly MarketJobStep[]
   readonly createdAt: string
 }
 

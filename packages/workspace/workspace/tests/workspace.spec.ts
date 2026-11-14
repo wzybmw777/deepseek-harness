@@ -1264,6 +1264,28 @@ describe('registry-global session unarchive', () => {
   })
 })
 
+describe('registry-global session forget', () => {
+  it('drops a deleted Session from accounting and both display sets', async () => {
+    const dir = await makeDir('forget-home')
+    const result = await harness({ sessions: [header('gone', dir, 100), header('kept', dir, 200)] })
+    const workspace = result.registry.list()[0]!
+    await result.registry.archiveSession(SessionId('gone'))
+    await result.registry.pinSession(SessionId('kept'))
+
+    await result.registry.forgetSession(SessionId('gone'))
+
+    expect(workspace.sessionIds).not.toContain('gone')
+    expect(workspace.sessionIds).toContain('kept')
+    expect(result.registry.archivedSessionIds).toEqual([])
+    expect(result.registry.pinnedSessionIds).toEqual(['kept'])
+    expect(storedState(result.pool).archivedSessionIds).toEqual([])
+
+    const changes = result.changes.length
+    await result.registry.forgetSession(SessionId('ghost'))
+    expect(result.changes.length).toBe(changes)
+  })
+})
+
 describe('registry-global session pin', () => {
   it('pins durably in prepend order, idempotently skips repeats, and leaves accounting untouched', async () => {
     const dir = await makeDir('pin-home')

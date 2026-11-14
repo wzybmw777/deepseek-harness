@@ -1535,6 +1535,16 @@ tr:hover .row-actions,
 /* Access + boot */
 .boot-screen { display: flex; min-height: 100dvh; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--canvas); }
 .boot-screen > div { display: flex; align-items: center; gap: 9px; color: var(--text-muted); font-size: 13px; }
+.launch-screen { gap: 22px; }
+.boot-screen > .launch-copy { display: flex; max-width: 460px; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.launch-copy strong { color: var(--text); font-size: 15px; font-weight: 500; letter-spacing: -0.01em; }
+.launch-copy p { margin: 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.7; }
+.launch-screen .button { margin-top: 2px; }
+.launch-track { width: min(280px, 62vw); height: 4px; overflow: hidden; border-radius: 999px; background: var(--surface-muted); }
+.launch-track > span { display: block; height: 100%; border-radius: inherit; background: var(--link); transition: width 0.4s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .launch-track > span { transition: none; }
+}
 .access-denied, .not-found { display: flex; max-width: 560px; min-height: 58vh; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto; text-align: center; }
 .access-denied > span { display: grid; width: 56px; height: 56px; margin-bottom: 18px; place-items: center; border: 0.5px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-muted); color: var(--text-secondary); }
 .access-denied h1, .not-found h1 { margin: 0; color: var(--text); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }

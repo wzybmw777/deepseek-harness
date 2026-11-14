@@ -4,7 +4,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { CommandClaim } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type { ClientSessionContext, InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { IconSkillOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { describeError, type ResourcePanelProps } from './common.tsx'
@@ -39,6 +39,28 @@ function rememberAgent(id: string): void {
   } catch { /* Browser storage is optional for ordering. */ }
 }
 
+/** Whether the draft already holds a command chip and cannot take a second claim. */
+function hasClaim(ctx: Context, session: ClientSessionContext): boolean {
+  const scope = ctx.sessions.scope(session.sessionId)
+  return scope !== undefined && ctx.conversation.input.for(scope).state.getSnapshot().phase === 'claimed'
+}
+
+/**
+ * Name an agent chat after its agent while the session carries no title yet,
+ * so the workspace list does not fill with untitled rows. Naming is advisory:
+ * a Host refusal must not discard the already recorded interaction.
+ * @param ctx - browser services.
+ * @param sessionId - chat that received the agent record.
+ * @param title - agent name to display.
+ * @returns completion of the best-effort rename.
+ */
+async function nameUntitledSession(ctx: Context, sessionId: SessionId, title: string): Promise<void> {
+  if (ctx.sessions.list.getSnapshot().byId[sessionId]?.title != null) return
+  await ctx.sessions.using(sessionId, { source: 'enterpriseInteraction' }, async (reference) => {
+    await reference.binding.session.rename(title)
+  })
+}
+
 /**
  * Start a fresh chat without overwriting another chat's draft.
  * @param ctx - browser services.
@@ -63,7 +85,7 @@ export function registerProductMentions(ctx: Context, t: Translate): () => void 
     if (!result.ok || !result.value || result.value.result.kind !== 'success') throw new ResourceApiError(0, 'record_unconfirmed', t('mention.recordFailed'))
   }
   const claim = (item: Item): CommandClaim => ({
-    name: 'enterprise-product', token: `${token(item)} `, hint: t('mention.materials'),
+    name: 'enterprise-product', token: `${token(item)} `, hint: t('mention.materials'), serializeArgs: true,
     async submit(args, actx) {
       if (!args.trim()) return { kind: 'error', text: t('mention.materials') }
       const session = ctx.sessions.sessionOf(actx)
@@ -74,6 +96,7 @@ export function registerProductMentions(ctx: Context, t: Translate): () => void 
           const transaction = await marketTransaction(identity.user, 'run', { agentId: item.id, input: args.trim(), sessionId: session.sessionId })
           const job = await workbenchProducts.run(item.id, args.trim(), transaction.key)
           await record(session.sessionId, { kind: 'agent', jobId: job.id })
+          await nameUntitledSession(ctx, session.sessionId, item.title).catch(() => { /* Naming is advisory. */ })
           transaction.complete()
           window.dispatchEvent(new Event('dsh-enterprise-access-changed'))
           return { kind: 'success' as const }
@@ -91,8 +114,8 @@ export function registerProductMentions(ctx: Context, t: Translate): () => void 
   }
   const source: InputTriggerSource = {
     trigger: '@', name: 'enterprise-agents', order: -50, showGroupTitle: false,
-    async candidates(_session, request) {
-      if (request.position === 'inline') return []
+    async candidates(session, request) {
+      if (request.position === 'inline' || hasClaim(ctx, session)) return []
       const catalog = await items()
       request.signal.throwIfAborted()
       const query = request.query.toLocaleLowerCase()

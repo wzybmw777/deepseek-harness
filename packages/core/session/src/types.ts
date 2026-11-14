@@ -565,5 +565,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** The named Session does not exist; produced by every layer that resolves a SessionId. */
     'session/not-found': { readonly sessionId: SessionId }
+    /** The named Session still has running work and cannot be deleted. */
+    'session/active': { readonly sessionId: SessionId }
   }
 }

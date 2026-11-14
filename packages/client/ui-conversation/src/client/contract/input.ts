@@ -44,8 +44,15 @@ export interface CommandClaim {
   readonly hint?: string
   readonly attachments?: boolean
   /**
+   * Serialize reference chips inside the arguments through their owner codecs
+   * before submit, giving the command the same text an ordinary message
+   * carries.
+   */
+  readonly serializeArgs?: boolean
+  /**
    * Submit the claimed command.
-   * @param args - command text after the claimed token.
+   * @param args - command text after the claimed token; reference chips are
+   * serialized when {@link CommandClaim.serializeArgs} is set.
    * @param actx - current Session scope.
    * @param attachments - serialized draft attachments accepted by the claim.
    * @returns command settlement.

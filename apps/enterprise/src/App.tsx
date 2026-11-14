@@ -1,5 +1,5 @@
 import { publicPath } from './lib/public-path.ts'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { BrandMark } from './components/Brand.tsx'
 import { Icon } from './components/Icon.tsx'
 import { Button, Spinner } from './components/ui.tsx'
@@ -29,6 +29,7 @@ import { UsagePage } from './pages/UsagePage.tsx'
 import { UsersPage } from './pages/UsersPage.tsx'
 
 const LAUNCH_URL = publicPath('/enterprise/api/harness/launch')
+const LAUNCH_STATUS_URL = publicPath('/enterprise/api/harness/status')
 
 const ADMIN_PERMISSIONS: Record<string, string | readonly string[]> = {
   '/enterprise/admin': 'dashboard.read',
@@ -57,6 +58,128 @@ function BootScreen(): ReactNode {
     <div className="boot-screen">
       <BrandMark size={32} />
       <div><Spinner size={18} /><span>正在进入 AI 工作台…</span></div>
+    </div>
+  )
+}
+
+interface LaunchStatus {
+  readonly state: 'starting' | 'ready' | 'stopped' | 'failed'
+  readonly elapsedMs?: number
+  readonly message?: string
+  readonly readyUrl?: string
+}
+
+const LAUNCH_POLL_MILLISECONDS = 1_200
+
+function launchStage(elapsedMs: number): string {
+  if (elapsedMs < 3_000) return '正在唤醒团队工作台…'
+  if (elapsedMs < 12_000) return '正在加载插件与技能…'
+  if (elapsedMs < 30_000) return '正在恢复工作区与知识库…'
+  return '正在做最后的准备…'
+}
+
+function launchProgress(elapsedMs: number): number {
+  const ratio = 1 - Math.exp(-elapsedMs / 9_000)
+  return Math.min(92, Math.round(ratio * 100))
+}
+
+/** Progress screen shown while the team container boots, instead of a blank redirect. */
+function LaunchScreen(): ReactNode {
+  const [elapsedMs, setElapsedMs] = useState(0)
+  const [failure, setFailure] = useState<string>()
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const { signal } = controller
+    const stopped = (): boolean => signal.aborted
+    let pollTimer: number | undefined
+    const startedAt = Date.now()
+    const clock = window.setInterval(() => { setElapsedMs(Date.now() - startedAt) }, 400)
+
+    const kick = async (): Promise<void> => {
+      try {
+        const response = await fetch(`${LAUNCH_URL}?wait=0`, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { accept: 'application/json' },
+          signal,
+        })
+        if (stopped()) return
+        if (response.status === 401) window.location.replace(publicPath('/enterprise/login?next=%2Fenterprise%2Fworkspace'))
+      } catch { /* the poll loop retries */ }
+    }
+
+    const poll = async (): Promise<void> => {
+      try {
+        const response = await fetch(LAUNCH_STATUS_URL, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { accept: 'application/json' },
+          signal,
+        })
+        if (stopped()) return
+        if (response.status === 401) {
+          window.location.replace(publicPath('/enterprise/login?next=%2Fenterprise%2Fworkspace'))
+          return
+        }
+        const status = await response.json() as LaunchStatus & { readonly error?: { readonly message?: string } }
+        if (stopped()) return
+        if (!response.ok) {
+          setFailure(status.error?.message ?? '团队工作台启动失败，请稍后重试')
+          return
+        }
+        if (status.state === 'ready' && status.readyUrl !== undefined) {
+          window.location.replace(status.readyUrl)
+          return
+        }
+        if (status.state === 'failed') {
+          setFailure(status.message ?? '团队工作台启动失败，请稍后重试')
+          return
+        }
+        if (status.state === 'stopped') await kick()
+      } catch { /* transient network error or abort; keep polling */ }
+      if (stopped()) return
+      pollTimer = window.setTimeout(() => { void poll() }, LAUNCH_POLL_MILLISECONDS)
+    }
+
+    void (async () => {
+      await kick()
+      if (!stopped()) await poll()
+    })()
+
+    return () => {
+      controller.abort()
+      window.clearInterval(clock)
+      if (pollTimer !== undefined) window.clearTimeout(pollTimer)
+    }
+  }, [])
+
+  if (failure !== undefined) {
+    return (
+      <div className="boot-screen launch-screen" role="alert">
+        <BrandMark size={32} />
+        <div className="launch-copy">
+          <strong>工作台暂时没有启动起来</strong>
+          <p>{failure}</p>
+        </div>
+        <Button variant="primary" onClick={() => { window.location.reload() }}>重新加载</Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="boot-screen launch-screen" role="status" aria-live="polite" aria-busy="true">
+      <BrandMark size={32} />
+      <div className="launch-copy">
+        <strong>{launchStage(elapsedMs)}</strong>
+        <p>
+          已等待 {Math.floor(elapsedMs / 1000)} 秒 · 首次进入约需 20–60 秒，之后会快很多
+          <br />请保持页面打开，不要刷新
+        </p>
+      </div>
+      <div className="launch-track" aria-hidden="true">
+        <span style={{ width: `${String(launchProgress(elapsedMs))}%` }} />
+      </div>
     </div>
   )
 }
@@ -129,20 +252,16 @@ function Routes(): ReactNode {
 
   useEffect(() => {
     if (loading || isLogin) return
-    if (isLaunchGate) {
-      window.location.replace(LAUNCH_URL)
-      return
-    }
     if (session === null) {
       const next = `${location.pathname}${location.search}`
       navigate(`/enterprise/login?next=${encodeURIComponent(next)}`, { replace: true })
     }
-  }, [isLaunchGate, isLogin, loading, location.pathname, location.search, session])
+  }, [isLogin, loading, location.pathname, location.search, session])
 
   if (loading) return <BootScreen />
   if (isLogin) return <LoginPage />
-  if (isLaunchGate) return <BootScreen />
   if (session === null) return <BootScreen />
+  if (isLaunchGate) return <LaunchScreen />
   if (pathname === '/enterprise/agents') return can('workspace.use') ? <MarketPage /> : <AccessDenied />
   if (isAccount) return <AdminLayout><AccountPage /></AdminLayout>
   if (isBilling) {

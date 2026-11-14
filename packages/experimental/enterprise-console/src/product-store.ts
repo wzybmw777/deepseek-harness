@@ -5,7 +5,7 @@ import { chmod, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync, type SQLOutputValue } from 'node:sqlite'
 import { HttpError } from './http.ts'
-import type { AgentEntitlement, AgentIcon, AgentJob, AgentProduct } from './product-types.ts'
+import type { AgentEntitlement, AgentIcon, AgentJob, AgentJobStep, AgentJobStepKind, AgentProduct } from './product-types.ts'
 
 const UNIT = 1_000_000
 const AGENT_ICONS: ReadonlySet<string> = new Set([
@@ -13,6 +13,8 @@ const AGENT_ICONS: ReadonlySet<string> = new Set([
   'finance', 'organization', 'legal', 'image', 'video', 'document', 'chat', 'knowledge',
 ])
 type Row = Record<string, SQLOutputValue>
+const STEP_KINDS: ReadonlySet<string> = new Set(['prepare', 'think', 'search', 'read', 'answer', 'build', 'tool'])
+const STEP_STATES: ReadonlySet<string> = new Set(['running', 'done', 'failed'])
 
 function str(row: Row, key: string): string {
   const value = row[key]
@@ -67,8 +69,30 @@ function job(row: Row): AgentJob {
   return {
     id: str(row, 'id'), agentId: str(row, 'agent_id'), title: str(row, 'title'), state: state as AgentJob['state'],
     input: str(row, 'input'), result: nullable(row, 'result'), error: nullable(row, 'error'), artifact: nullable(row, 'artifact'),
-    charged: num(row, 'charged') / UNIT, createdAt: str(row, 'created_at'),
+    steps: jobSteps(row), charged: num(row, 'charged') / UNIT, createdAt: str(row, 'created_at'),
   }
+}
+
+/** Read recorded stages tolerantly; old rows and hand-edited values degrade to no timeline. */
+function jobSteps(row: Row): AgentJobStep[] {
+  const value = row.steps
+  if (typeof value !== 'string' || value === '') return []
+  let parsed: unknown
+  try { parsed = JSON.parse(value) } catch { return [] }
+  if (!Array.isArray(parsed)) return []
+  const steps: AgentJobStep[] = []
+  for (const item of parsed) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) continue
+    const entry = item as Record<string, unknown>
+    if (typeof entry.kind !== 'string' || !STEP_KINDS.has(entry.kind)
+      || typeof entry.at !== 'string' || typeof entry.state !== 'string' || !STEP_STATES.has(entry.state)) continue
+    steps.push({
+      kind: entry.kind as AgentJobStepKind,
+      ...(typeof entry.detail === 'string' && entry.detail !== '' ? { detail: entry.detail } : {}),
+      at: entry.at, state: entry.state as AgentJobStep['state'],
+    })
+  }
+  return steps
 }
 
 /** One shipped agent definition, inserted as a draft the first time its catalog version is seen. */
@@ -97,7 +121,7 @@ export class ProductStore {
     await chmod(filename, 0o600)
     db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;')
     const version = db.prepare('PRAGMA user_version').get()?.user_version
-    if (version !== 0 && version !== 1 && version !== 2 && version !== 3) { db.close(); throw new Error('Unsupported product database version') }
+    if (version !== 0 && version !== 1 && version !== 2 && version !== 3 && version !== 4) { db.close(); throw new Error('Unsupported product database version') }
     db.exec(`
       CREATE TABLE IF NOT EXISTS agents (
         id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, alias TEXT NOT NULL DEFAULT '',
@@ -133,6 +157,10 @@ export class ProductStore {
       ) STRICT;
       CREATE TABLE IF NOT EXISTS catalog_seed (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
     `)
+    const jobColumns = db.prepare('PRAGMA table_info(jobs)').all() as Array<{ name?: unknown }>
+    if (!jobColumns.some(column => column.name === 'steps')) {
+      db.exec("ALTER TABLE jobs ADD COLUMN steps TEXT NOT NULL DEFAULT '[]'")
+    }
     if (version === 1) {
       db.exec('BEGIN IMMEDIATE')
       try {
@@ -167,7 +195,7 @@ export class ProductStore {
         throw error
       }
     }
-    db.exec('PRAGMA user_version=3')
+    db.exec('PRAGMA user_version=4')
     const store = new ProductStore(db)
     if (store.agents().length === 0) store.saveAgent({ id: 'ppt-studio', title: '演示文稿助手',
       description: '把你的文案、汇报材料或课程内容，整理成一份可以继续编辑的演示文稿。',
@@ -396,7 +424,31 @@ export class ProductStore {
    * @param error - localized public error.
    */
   updateJob(id: string, state: AgentJob['state'], result: string | null = null, artifact: string | null = null, error: string | null = null): void {
-    this.db.prepare('UPDATE jobs SET state=?,result=?,artifact=?,error=? WHERE id=?').run(state, result, artifact, error, id)
+    const row = this.db.prepare('SELECT steps FROM jobs WHERE id=?').get(id)
+    const steps = row === undefined ? [] : jobSteps(row)
+    const settled = state === 'running' ? steps : steps.map((step): AgentJobStep =>
+      step.state === 'running' ? { ...step, state: state === 'completed' ? 'done' : 'failed' } : step)
+    this.db.prepare('UPDATE jobs SET state=?,result=?,artifact=?,error=?,steps=? WHERE id=?')
+      .run(state, result, artifact, error, JSON.stringify(settled), id)
+  }
+
+  /**
+   * Record one progress stage and settle the previous one, keeping the latest twenty.
+   * Consecutive duplicate stages are ignored so polling clients do not see repeats.
+   * @param id - admitted task.
+   * @param kind - stage kind; display copy is localized by the client.
+   * @param detail - bounded subject such as the searched question or page path.
+   */
+  appendStep(id: string, kind: AgentJobStepKind, detail?: string): void {
+    const row = this.db.prepare('SELECT steps FROM jobs WHERE id=?').get(id)
+    if (row === undefined) return
+    const current = jobSteps(row)
+    const subject = detail === undefined || detail.trim() === '' ? undefined : detail.trim().slice(0, 80)
+    const last = current[current.length - 1]
+    if (last?.kind === kind && last.detail === subject) return
+    const steps = current.map((step): AgentJobStep => step.state === 'running' ? { ...step, state: 'done' } : step)
+    steps.push({ kind, ...(subject === undefined ? {} : { detail: subject }), at: new Date().toISOString(), state: 'running' })
+    this.db.prepare('UPDATE jobs SET steps=? WHERE id=?').run(JSON.stringify(steps.slice(-20)), id)
   }
 
   /**

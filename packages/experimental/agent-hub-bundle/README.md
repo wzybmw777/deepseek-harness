@@ -48,6 +48,7 @@ Indirectly, through the console's product runtime, which renders an agent's stor
 
 No direct effect; each product run owns its own prompt.
 
+<a id="known-limitations-and-deferred-work"></a>
 ## Known Limitations and Deferred Work
 
 - The bundle ships one catalog revision. Entries the owner deletes stay deleted until the shipped catalog changes, at which point only newly added ids are inserted again.

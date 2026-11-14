@@ -4,6 +4,7 @@ import { resolvePublicPathPrefix } from './public-path.ts'
 import { createHash } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { ProductApi } from './product-api.ts'
+import type { TenantRuntimeStatus } from './tenant-runtime.ts'
 import type { RemoteBrowserControl, RemoteBrowserEvent } from '@deepseek-ai/dsh-client-ui-sidebar-browser/types'
 import { DesktopAuthError, DesktopAuthService } from './desktop-auth.ts'
 import {
@@ -137,6 +138,7 @@ interface ApiDependencies {
   readonly resources: TeamResources
   readonly tenantPath: (team: TeamRecord) => string
   readonly prepareTenant: (team: TeamRecord) => Promise<void>
+  readonly tenantStatus?: (team: TeamRecord) => TenantRuntimeStatus
   readonly plugins?: EnterprisePluginInstaller
   readonly pluginsChanged?: () => Promise<void>
   readonly verification?: VerificationService
@@ -389,6 +391,8 @@ export class EnterpriseApi {
   private readonly publicPathPrefix: string
   private readonly sessionCookieName: string
   private readonly attempts = new Map<string, LoginAttempt>()
+  private readonly launches = new Map<string, Promise<void>>()
+  private readonly launchFailures = new Map<string, string>()
   private readonly verification: VerificationService
   private readonly desktopAuth: DesktopAuthService
   private readonly desktopModels: DesktopModels
@@ -559,7 +563,11 @@ export class EnterpriseApi {
       return
     }
     if (pathname === `${API_PREFIX}/harness/launch` && method === 'GET') {
-      await this.launchWorkspace(request, response)
+      await this.launchWorkspace(request, response, url)
+      return
+    }
+    if (pathname === `${API_PREFIX}/harness/status` && method === 'GET') {
+      this.harnessStatus(request, response)
       return
     }
     const state = this.requireSession(request)
@@ -1519,25 +1527,66 @@ export class EnterpriseApi {
     sendEmpty(response, 204, { 'x-enterprise-user': state.user.email })
   }
 
-  private async launchWorkspace(request: IncomingMessage, response: ServerResponse): Promise<void> {
+  private async launchWorkspace(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
     const state = this.authenticateRequest(request)
     if (state === undefined) {
       this.redirectToLogin(response)
       return
     }
     this.requirePermission(state, 'workspace.use')
+    const team = this.activeTeam(state)
+    if (!this.launches.has(team.id)) {
+      await this.dependencies.store.mutate((draft) => {
+        appendAudit(draft, state.user, 'workspace.launch', 'workspace', team.id, `${state.user.email} 打开团队 AI 工作台`, clientIp(request), {
+          teamId: team.id,
+          tenantSlug: team.slug,
+        })
+      })
+    }
+    if (url.searchParams.get('wait') === '0') {
+      this.beginTenantStart(team)
+      sendJson(response, 202, this.tenantStatusProjection(team))
+      return
+    }
+    await this.prepareTenant(team)
+    this.redirectToTenant(response, team)
+  }
+
+  private harnessStatus(request: IncomingMessage, response: ServerResponse): void {
+    const state = this.authenticateRequest(request)
+    if (state === undefined) throw new HttpError(401, '请先登录企业工作台', 'unauthorized')
+    this.requirePermission(state, 'workspace.use')
+    sendJson(response, 200, this.tenantStatusProjection(this.activeTeam(state)))
+  }
+
+  private activeTeam(state: EnterpriseRequestSession): TeamRecord {
     const data = this.dependencies.store.snapshot()
     const team = state.user.teamId === undefined ? undefined : data.teams.find(candidate => candidate.id === state.user.teamId)
     if (team === undefined) throw new HttpError(403, '当前账号尚未分配团队，请联系管理员', 'tenant_unassigned')
     if (team.status !== 'active') throw new HttpError(403, '当前团队已停用，请联系管理员', 'tenant_suspended')
-    await this.dependencies.store.mutate((draft) => {
-      appendAudit(draft, state.user, 'workspace.launch', 'workspace', team.id, `${state.user.email} 打开团队 AI 工作台`, clientIp(request), {
-        teamId: team.id,
-        tenantSlug: team.slug,
-      })
-    })
-    await this.prepareTenant(team)
-    this.redirectToTenant(response, team)
+    return team
+  }
+
+  private beginTenantStart(team: TeamRecord): void {
+    if (this.launches.has(team.id)) return
+    this.launchFailures.delete(team.id)
+    const launch = this.prepareTenant(team).catch((error: unknown) => {
+      this.launchFailures.set(team.id, error instanceof HttpError ? error.message : '团队工作台启动失败，请稍后重试')
+    }).finally(() => { this.launches.delete(team.id) })
+    this.launches.set(team.id, launch)
+  }
+
+  private tenantStatusProjection(team: TeamRecord): Record<string, unknown> {
+    const readyUrl = this.dependencies.tenantPath(team)
+    const failure = this.launchFailures.get(team.id)
+    if (failure !== undefined) return { slug: team.slug, state: 'failed', message: failure, readyUrl }
+    const snapshot = this.dependencies.tenantStatus?.(team) ?? { state: 'stopped' as const }
+    return {
+      slug: team.slug,
+      state: this.launches.has(team.id) ? 'starting' : snapshot.state,
+      ...(snapshot.elapsedMs === undefined ? {} : { elapsedMs: snapshot.elapsedMs }),
+      readyUrl,
+    }
   }
 
   private async prepareTenant(team: TeamRecord): Promise<void> {

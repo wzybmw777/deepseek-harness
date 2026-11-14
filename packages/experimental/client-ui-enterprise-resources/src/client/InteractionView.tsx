@@ -4,12 +4,28 @@ import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Button, MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import { describeError, FormError, LoadingState } from './common.tsx'
-import { workbenchProducts, type MarketJob } from './product-api.ts'
+import { workbenchProducts, type MarketJob, type MarketJobStep } from './product-api.ts'
 import { NS } from './locales.ts'
 import css from './Product.module.css'
 
 type InteractionProps = PropsRuntime<'conversation.chat.commandview'> & PropsLocale<typeof NS>
 type RecordData = { kind: 'agent'; jobId: string } | { kind: 'knowledge'; title: string; input: string; answer: string }
+
+const STEP_LABEL_KEYS = {
+  prepare: 'market.step.prepare', think: 'market.step.think', search: 'market.step.search',
+  read: 'market.step.read', answer: 'market.step.answer', build: 'market.step.build', tool: 'market.step.tool',
+} as const
+
+function stepLabel(step: MarketJobStep, t: InteractionProps['t']): string {
+  const label = t(STEP_LABEL_KEYS[step.kind])
+  return step.detail === undefined ? label : t('market.stepWithDetail', { label, detail: step.detail })
+}
+
+function formatClock(milliseconds: number): string {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000))
+  return `${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 function decode(input: string | null): RecordData | undefined {
   if (input === null) return undefined
   let value: unknown
@@ -40,6 +56,7 @@ export function InteractionView({ node, t }: InteractionProps): ReactNode {
   const [job, setJob] = useState<MarketJob | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
   const seenState = useRef<string | undefined>()
   useEffect(() => {
     if (!jobId || !accepted) return
@@ -60,12 +77,28 @@ export function InteractionView({ node, t }: InteractionProps): ReactNode {
     void load()
     return () => { active = false; clearTimeout(timer) }
   }, [jobId, accepted, retry, t])
+  const active = job !== null && (job.state === 'queued' || job.state === 'running')
+  useEffect(() => {
+    if (!active) return
+    const timer = setInterval(() => { setNow(Date.now()) }, 1000)
+    return () => { clearInterval(timer) }
+  }, [active, job?.id])
   if (!record || node.outcome?.kind === 'error') return <FormError message={t('mention.recordFailed')} />
   const title = record.kind === 'knowledge' ? record.title : job?.title ?? t('mention.agents')
+  const started = job === null ? Number.NaN : Date.parse(job.createdAt)
+  const elapsed = active && Number.isFinite(started) ? formatClock(now - started) : ''
+  const steps = job?.steps ?? []
   return <article className={css.interaction} data-enterprise-interaction={record.kind}>
-    <header><h2>@{title}</h2>{job ? <span role="status" className={css.status} data-state={job.state}>{t(`market.${job.state}`)}</span> : null}</header>
+    <header><h2>@{title}</h2>{job ? <span role="status" className={css.status} data-state={job.state}>
+      {t(`market.${job.state}`)}{elapsed === '' ? null : ` · ${t('market.elapsed', { time: elapsed })}`}
+    </span> : null}</header>
     {record.kind === 'knowledge' ? <><p className={css.interactionInput}>{record.input}</p><div className={css.interactionMarkdown}><MarkdownText text={record.answer} labels={labels} /></div></>
       : job ? <><p className={css.interactionInput}>{job.input}</p>
+        {steps.length === 0 ? null : <ol className={css.steps} aria-label={t('market.steps')}>
+          {steps.map((step, index) => <li key={`${step.at}-${String(index)}`} className={css.step} data-state={step.state}>
+            <span className={css.stepMark} aria-hidden="true" />{stepLabel(step, t)}
+          </li>)}
+        </ol>}
         {job.result ? <div className={css.interactionMarkdown}><MarkdownText text={job.result} labels={labels} /></div> : null}
         {job.error ? <FormError message={job.error} /> : null}
         <footer>{job.state === 'completed' && job.artifact ? <a className={css.download} href={workbenchProducts.download(job.id)}>{t('market.download')}</a> : null}</footer>

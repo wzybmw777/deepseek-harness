@@ -130,6 +130,13 @@ export interface ISession {
    */
   rename(title: string): Promise<RemoteResult<{ title: string; seq: SessionSeq }>>
   /**
+   * Permanently delete this Session and its stored messages. The Host
+   * refuses while any of its work still runs; the Client row leaves the list
+   * on success.
+   * @returns whether a stored log existed.
+   */
+  delete(): Promise<RemoteResult<{ deleted: boolean }>>
+  /**
    * Extend history by at least 50 messages and two Turn starts, including a
    * partial Turn at the window's beginning. Stop at 500 messages or history
    * exhaustion even when those minima cannot be met. Publish one prepend.

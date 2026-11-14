@@ -948,6 +948,15 @@ workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 
 @Remote('rename') rename(request: SessionRenameRequest): Promise<SessionRenameValue>
 
 /**
+ * Delete one ordinary Session and its stored log. Running work refuses as
+ * `session/active`; an idle live Session is torn down so its Client row
+ * leaves the list through `session/disposed`.
+ * @param request - Session identity to remove.
+ * @returns whether a stored log was removed.
+ */
+@Remote('delete') delete(request: SessionDeleteRequest): Promise<SessionDeleteValue>
+
+/**
  * Fork one cold-readable exact event prefix into a new Session. An omitted
  * boundary selects the latest completed-turn prefix; an open cut receives
  * synthetic fork closers.

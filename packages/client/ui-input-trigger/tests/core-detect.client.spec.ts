@@ -70,6 +70,12 @@ describe('detectTrigger position', () => {
     expect(atEnd('第一行\n/goal')).toMatchObject({ position: 'inline' })
     expect(atEnd('a /goal')).toMatchObject({ position: 'inline' })
   })
+
+  it('treats a token after only reference chips and whitespace as leading', () => {
+    expect(atEnd('￼ @wo')).toMatchObject({ trigger: '@', query: 'wo', position: 'leading' })
+    expect(atEnd('￼  ￼ /goal')).toMatchObject({ trigger: '/', query: 'goal', position: 'leading' })
+    expect(atEnd('￼x /goal')).toMatchObject({ position: 'inline' })
+  })
 })
 
 describe('detectTrigger guard tiers', () => {

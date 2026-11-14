@@ -28,8 +28,10 @@ import {
   type SessionAccess, type SessionHandle,
   type SessionHandleReadResult,
   type SessionLocation, type SessionPersistenceCreateOptions,
+  type SessionPersistenceDeleteOptions,
   type SessionPersistenceListOptions, type SessionPersistenceOpenOptions,
   type SessionPersistenceSnapshot, type SessionPersistenceStatOptions,
+  SessionAlreadyOwnedError,
   type SessionPersistenceRevision as PersistenceRevision,
 } from '@deepseek-ai/dsh-session-persistence'
 import { JsonlBackendTracker, JsonlSessionHandle, type StorageHandleState } from './storage.ts'
@@ -561,6 +563,36 @@ class JsonlSessionPersistence extends SessionPersistence {
     }
     signal?.throwIfAborted()
     return snapshots
+  }
+
+  /**
+   * Delete every artifact directory this root holds for one session, including
+   * retired format generations. A write handle open in this process refuses
+   * first; read handles keep their already-open bytes and never reanimate the
+   * session because pending bookkeeping is dropped with the artifacts.
+   * @param id - the stored session to remove.
+   * @param options - optional cancellation.
+   * @returns whether any artifact directory existed.
+   */
+  async delete(id: SessionId, options?: SessionPersistenceDeleteOptions): Promise<boolean> {
+    const signal = options?.signal
+    signal?.throwIfAborted()
+    if (this.tracker.hasWriter(id)) throw new SessionAlreadyOwnedError(id)
+    const projects = await this.listProjectDirs(signal)
+    let removed = false
+    for (const project of projects) {
+      signal?.throwIfAborted()
+      const directory = join(project, encodeSegment(id))
+      if (!(await this.exists(directory))) continue
+      await rm(directory, { recursive: true, force: true })
+      removed = true
+    }
+    if (removed) {
+      this.coldLogMemo.delete(id)
+      this.tracker.forget(id)
+    }
+    signal?.throwIfAborted()
+    return removed
   }
 
   // --- handle-facing storage internals (package-private via the handle class below) ---

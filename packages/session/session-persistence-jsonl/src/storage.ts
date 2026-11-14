@@ -458,6 +458,23 @@ export class JsonlBackendTracker {
   }
 
   /**
+   * Whether this process holds write ownership for one session.
+   * @param id - the session to test.
+   * @returns true while a write claim or write handle exists.
+   */
+  hasWriter(id: SessionId): boolean {
+    return this.writers.has(id)
+  }
+
+  /**
+   * Drop a pending entry whose artifacts were deleted.
+   * @param id - the removed session.
+   */
+  forget(id: SessionId): void {
+    this.pending.delete(id)
+  }
+
+  /**
    * Iterate the pending sessions for listing.
    * @returns the pending entries, keyed by session id.
    */

@@ -143,6 +143,10 @@ class TestPersistence extends SessionPersistence {
     this.readSignals = []
   }
 
+  async delete(id: SessionIdType): Promise<boolean> {
+    return TestPersistence.entries.delete(id)
+  }
+
   create(header: SessionHeader): Promise<SessionHandle> {
     TestPersistence.entries.set(header.id, { meta: structuredClone(header), events: [] })
     return Promise.resolve(new TestHandle(header.id, structuredClone(header), 'write'))
